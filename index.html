@@ -468,12 +468,7 @@ solution for a static site.Ran 2 commandsRan 2 commandsCheck line countScriptBui
       <div class="sec">
         <div class="sec-label">☁ Google Drive Sync</div>
         <div style="font-size:11px; color:var(--muted2); line-height:1.7; margin-bottom:10px;">
-          Sync your route across any device. Uses Google Apps Script.
-          <br/>1. Deploy your Google Script as a Web App
-          <br/>2. Paste the Web App URL below
-        </div>
-        <div class="cloud-row">
-          <input type="text" class="cloud-input" id="cloud-script-url" placeholder="https://script.google.com/macros/s/.../exec" />
+          Sync your route across any device. Data is securely saved to your connected Google Drive.
         </div>
       </div>
 
@@ -539,10 +534,7 @@ function saveState() {
   const data = {
     stops: state.stops,
     notes: document.getElementById('notes-area').value,
-    poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
-    cloud: {
-      scriptUrl: document.getElementById('cloud-script-url').value, // <--- CHANGED
-    }
+    poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson }))
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
   setPill('● saved');
@@ -559,11 +551,6 @@ function loadState() {
       data.poiLayersMeta.forEach(meta => {
         if (meta.geojson) addPoiLayer(meta.name, meta.geojson, meta.color, meta.id, meta.visible);
       });
-    }
-    if (data.cloud) {
-      if (data.cloud.scriptUrl) {
-        document.getElementById('cloud-script-url').value = data.cloud.scriptUrl;
-      }
     }
   } catch(e) { log('Could not restore saved session', 'err'); }
 }
