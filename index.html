@@ -152,6 +152,8 @@
       border-bottom: 1px solid var(--border);
       transition: background .1s;
     }
+    .stop-item[draggable="true"] { cursor: grab; }
+    .stop-item[draggable="true"]:active { cursor: grabbing; }
     .stop-item:hover { background: rgba(255,255,255,0.015); }
     .stop-header {
       display: flex; align-items: center; gap: 8px;
@@ -930,6 +932,7 @@ function renderStopsList() {
     const isEnd   = lockEnd && pos === visibleIndices.length - 1;
     const div = document.createElement('div');
     div.className = 'stop-item';
+    div.setAttribute('draggable', 'true'); // <-- Makes the item draggable
     const color = COLORS[i % COLORS.length];
 
     let legHtml = '';
@@ -963,7 +966,7 @@ function renderStopsList() {
 
     div.innerHTML = `
       ${legHtml}
-      <div class="stop-header" data-idx="${i}">
+      <div class="stop-header" data-idx="${i}" title="Drag to reorder">
         <div class="stop-num" style="background:${color};color:#000">${pos+1}</div>
         <div class="stop-name-text">${s.alias ? `<span class="stop-name-alias">${s.alias}</span>` : dName}</div>
         <span class="stop-badge day-tag">${dayLabel}</span>
@@ -990,7 +993,7 @@ function renderStopsList() {
       </div>
     `;
 
-    // Clean Programmatic Listeners (Fixes the click bug)
+    // ─── CLICK LISTENERS ───
     div.querySelector('.stop-header').addEventListener('click', (e) => {
       if (e.target.closest('.stop-num') || e.target.closest('.stop-badge')) return;
       const body = document.getElementById(`stop-body-${i}`);
@@ -998,9 +1001,64 @@ function renderStopsList() {
       const open = body.classList.toggle('open');
       icon.textContent = open ? '▴' : '▾';
     });
+    
     div.querySelector('.stop-num').addEventListener('click', () => focusOnStop(s.lat, s.lng));
     div.querySelector('.stop-save').addEventListener('click', e => { e.stopPropagation(); saveStopMeta(parseInt(e.target.dataset.idx)); });
     div.querySelector('.stop-remove-btn').addEventListener('click', e => { e.stopPropagation(); removeStop(parseInt(e.target.dataset.idx)); });
+
+    // ─── DRAG AND DROP LISTENERS ───
+    div.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', i); // Pass the absolute original index
+      setTimeout(() => div.style.opacity = '0.4', 0);
+    });
+
+    div.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      div.style.background = 'rgba(61, 255, 160, 0.1)'; // Highlight drop target gently
+    });
+
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault(); // Necessary to allow dropping
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    div.addEventListener('dragleave', (e) => {
+      div.style.background = '';
+    });
+
+    div.addEventListener('drop', (e) => {
+      e.preventDefault();
+      div.style.background = '';
+      const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const targetIdx = i;
+
+      if (draggedIdx !== targetIdx && !isNaN(draggedIdx)) {
+        // Splice out the dragged item
+        const itemToMove = state.stops[draggedIdx];
+        state.stops.splice(draggedIdx, 1);
+        
+        // The array shifted if we pulled from above the target
+        const insertIdx = draggedIdx < targetIdx ? targetIdx - 1 : targetIdx;
+        state.stops.splice(insertIdx, 0, itemToMove);
+
+        // Reset the optimized views for this day, as the user has manually set a new baseline
+        delete state.optimizedOrders[currentCtx];
+        delete state.originalOrders[currentCtx];
+        state.viewMode = 'original';
+        resetStats();
+        
+        saveState();
+        renderStopsList();
+        refreshMarkers();
+        triggerAutoRouteDraw();
+      }
+    });
+
+    div.addEventListener('dragend', () => {
+      div.style.opacity = '1';
+      document.querySelectorAll('.stop-item').forEach(el => el.style.background = '');
+    });
     
     el.appendChild(div);
   });
