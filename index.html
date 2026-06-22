@@ -466,30 +466,23 @@ solution for a static site.Ran 2 commandsRan 2 commandsCheck line countScriptBui
     <!-- ══ CLOUD SYNC PANEL ══ -->
     <div class="panel" id="panel-cloud">
       <div class="sec">
-        <div class="sec-label">☁ Cloud Sync via JSONBin</div>
+        <div class="sec-label">☁ Google Drive Sync</div>
         <div style="font-size:11px; color:var(--muted2); line-height:1.7; margin-bottom:10px;">
-          Sync your route across any device. Uses <strong style="color:var(--text)">JSONBin.io</strong> (free). Steps:
-          <br/>1. Sign up at <a href="https://jsonbin.io" target="_blank" style="color:var(--blue)">jsonbin.io</a>
-          <br/>2. Create an API key (Master Key)
-          <br/>3. Paste it below and click INIT
+          Sync your route across any device. Uses Google Apps Script.
+          <br/>1. Deploy your Google Script as a Web App
+          <br/>2. Paste the Web App URL below
         </div>
         <div class="cloud-row">
-          <input type="password" class="cloud-input" id="cloud-api-key" placeholder="$2a$10$… (Master Key)" />
-          <button class="btn btn-sm" id="cloud-init-btn">INIT</button>
-        </div>
-        <div style="font-size:10px; color:var(--muted2); margin-bottom:8px;">Bin ID (auto-saved): <span id="cloud-bin-id" style="color:var(--text)">—</span></div>
-        <div class="cloud-row">
-          <input type="text" class="cloud-input" id="cloud-bin-input" placeholder="Or paste existing Bin ID to link devices" />
-          <button class="btn-ghost btn-sm" id="cloud-link-btn">LINK</button>
+          <input type="text" class="cloud-input" id="cloud-script-url" placeholder="https://script.google.com/macros/s/.../exec" />
         </div>
       </div>
 
       <div class="sec" style="flex:1">
         <div class="sec-label">Sync Actions</div>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-          <button class="btn" id="cloud-push-btn" style="width:100%" disabled>↑ PUSH — Save to cloud</button>
-          <button class="btn-ghost" id="cloud-pull-btn" style="width:100%" disabled>↓ PULL — Load from cloud</button>
-          <div class="cloud-status" id="cloud-status">Not configured. Add your API key above.</div>
+          <button class="btn" id="cloud-push-btn" style="width:100%">↑ PUSH — Save to Drive</button>
+          <button class="btn-ghost" id="cloud-pull-btn" style="width:100%">↓ PULL — Load from Drive</button>
+          <div class="cloud-status" id="cloud-status">Paste your Script URL above to enable sync.</div>
         </div>
 
         <div style="margin-top:18px; padding-top:12px; border-top:1px solid var(--border);">
@@ -548,8 +541,7 @@ function saveState() {
     notes: document.getElementById('notes-area').value,
     poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
     cloud: {
-      apiKey: document.getElementById('cloud-api-key').value,
-      binId: document.getElementById('cloud-bin-id').textContent,
+      scriptUrl: document.getElementById('cloud-script-url').value, // <--- CHANGED
     }
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
@@ -569,10 +561,8 @@ function loadState() {
       });
     }
     if (data.cloud) {
-      if (data.cloud.apiKey) document.getElementById('cloud-api-key').value = data.cloud.apiKey;
-      if (data.cloud.binId && data.cloud.binId !== '—') {
-        document.getElementById('cloud-bin-id').textContent = data.cloud.binId;
-        enableCloudButtons();
+      if (data.cloud.scriptUrl) {
+        document.getElementById('cloud-script-url').value = data.cloud.scriptUrl;
       }
     }
   } catch(e) { log('Could not restore saved session', 'err'); }
@@ -1202,17 +1192,8 @@ document.getElementById('lock-start').addEventListener('change', renderStopsList
 document.getElementById('lock-end').addEventListener('change', renderStopsList);
 
 // ═══════════════════════════════════════════════════════════════
-// CLOUD SYNC — JSONBin.io
+// CLOUD SYNC — Google Drive via Apps Script & Vercel API
 // ═══════════════════════════════════════════════════════════════
-const JSONBIN_BASE = 'https://api.jsonbin.io/v3';
-
-function getCloudKey() { return document.getElementById('cloud-api-key').value.trim(); }
-function getBinId()    { return document.getElementById('cloud-bin-id').textContent.trim(); }
-
-function enableCloudButtons() {
-  document.getElementById('cloud-push-btn').disabled = false;
-  document.getElementById('cloud-pull-btn').disabled = false;
-}
 
 function cloudStatus(msg, cls) {
   const el = document.getElementById('cloud-status');
@@ -1220,86 +1201,71 @@ function cloudStatus(msg, cls) {
   el.className = 'cloud-status' + (cls ? ' ' + cls : '');
 }
 
-// INIT: create a new bin
-document.getElementById('cloud-init-btn').addEventListener('click', async () => {
-  const key = getCloudKey();
-  if (!key) { cloudStatus('Paste your JSONBin Master Key first.', 'err'); return; }
-  cloudStatus('Creating bin…', 'busy');
+// Helper to fetch the secure URL from Vercel's backend
+async function fetchSecureUrl() {
   try {
-    const res = await fetch(`${JSONBIN_BASE}/b`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key, 'X-Bin-Name': 'routeopt-nz' },
-      body: JSON.stringify(getExportData())
-    });
+    const res = await fetch('/api/config');
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || res.status);
-    const binId = data.metadata.id;
-    document.getElementById('cloud-bin-id').textContent = binId;
-    saveState();
-    enableCloudButtons();
-    cloudStatus(`Bin created: ${binId}`, 'ok');
-    log('Cloud bin created: ' + binId, 'ok', 'log-cloud');
-    toast('Cloud bin created ✓');
-  } catch(e) {
-    cloudStatus('Error: ' + e.message, 'err');
-    log('Cloud init error: ' + e.message, 'err', 'log-cloud');
+    if (data.error) throw new Error(data.error);
+    return data.scriptUrl;
+  } catch (error) {
+    throw new Error("Could not load backend config: " + error.message);
   }
-});
-
-// LINK: connect to existing bin
-document.getElementById('cloud-link-btn').addEventListener('click', () => {
-  const id = document.getElementById('cloud-bin-input').value.trim();
-  if (!id) { cloudStatus('Paste a Bin ID to link.', 'err'); return; }
-  document.getElementById('cloud-bin-id').textContent = id;
-  saveState();
-  enableCloudButtons();
-  cloudStatus(`Linked to bin: ${id}`, 'ok');
-  toast('Bin linked ✓');
-});
+}
 
 // PUSH
 document.getElementById('cloud-push-btn').addEventListener('click', async () => {
-  const key = getCloudKey();
-  const binId = getBinId();
-  if (!key || binId === '—') { cloudStatus('Configure key + bin first.', 'err'); return; }
-  cloudStatus('Pushing…', 'busy');
+  cloudStatus('Preparing sync...', 'busy');
+  
   try {
-    const res = await fetch(`${JSONBIN_BASE}/b/${binId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
-      body: JSON.stringify(getExportData())
+    const url = await fetchSecureUrl(); // Get the URL from Vercel Env
+    cloudStatus('Syncing to Drive…', 'busy');
+    
+    const payload = getExportData();
+    const response = await fetch(url, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
     });
-    if (!res.ok) { const d = await res.json(); throw new Error(d.message || res.status); }
-    cloudStatus('Pushed ✓ ' + new Date().toLocaleTimeString(), 'ok');
-    log('Pushed to cloud', 'ok', 'log-cloud');
-    toast('Pushed to cloud ✓');
-  } catch(e) {
-    cloudStatus('Push error: ' + e.message, 'err');
-    log('Push error: ' + e.message, 'err', 'log-cloud');
+
+    const result = await response.json();
+    if (result.status === "success") {
+      cloudStatus('Pushed ✓ ' + new Date().toLocaleTimeString(), 'ok');
+      toast("Sync complete! Saved to Drive.");
+    } else {
+      throw new Error(result.message || "Drive save failed");
+    }
+  } catch (error) {
+    cloudStatus('Push error: ' + error.message, 'err');
+    toast("Sync failed.");
   }
 });
 
 // PULL
 document.getElementById('cloud-pull-btn').addEventListener('click', async () => {
-  const key = getCloudKey();
-  const binId = getBinId();
-  if (!key || binId === '—') { cloudStatus('Configure key + bin first.', 'err'); return; }
-  if (!confirm('Pull from cloud? This will overwrite your current local stops and notes.')) return;
-  cloudStatus('Pulling…', 'busy');
+  if (!confirm('Pull from Drive? This will overwrite your current local stops and notes.')) return;
+  
+  cloudStatus('Preparing pull...', 'busy');
+  
   try {
-    const res = await fetch(`${JSONBIN_BASE}/b/${binId}/latest`, {
-      headers: { 'X-Master-Key': key }
-    });
-    if (!res.ok) { const d = await res.json(); throw new Error(d.message || res.status); }
-    const data = await res.json();
-    applyImportData(data.record);
+    const url = await fetchSecureUrl(); // Get the URL from Vercel Env
+    cloudStatus('Pulling from Drive…', 'busy');
+    
+    const response = await fetch(url, { method: "GET", mode: "cors" });
+    const data = await response.json();
+    
+    if (data.status === "error") throw new Error(data.message);
+    
+    const payloadData = data.data || data; 
+    applyImportData(payloadData);
     saveState();
+    
     cloudStatus('Pulled ✓ ' + new Date().toLocaleTimeString(), 'ok');
-    log('Pulled from cloud', 'ok', 'log-cloud');
-    toast('Pulled from cloud ✓');
+    toast('Pulled from Drive ✓');
   } catch(e) {
     cloudStatus('Pull error: ' + e.message, 'err');
-    log('Pull error: ' + e.message, 'err', 'log-cloud');
+    toast("Pull failed.");
   }
 });
 
