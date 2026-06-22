@@ -1,3 +1,4 @@
+solution for a static site.Ran 2 commandsRan 2 commandsCheck line countScriptBuild the enhanced HTML file with all 4 new featuresbashcat > /home/claude/routeopt_v2.html << 'HTMLEOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,21 +20,20 @@
       --text:     #c4cdd8;
       --muted:    #4a5568;
       --muted2:   #6b7a90;
-      --accent:   #3dffa0;   /* optimized green */
-      --orange:   #ff6b35;   /* original / remove */
-      --blue:     #4d9fff;   /* info / POI fuel */
-      --purple:   #a78bfa;   /* POI camp */
-      --yellow:   #f5c842;   /* POI dump */
+      --accent:   #3dffa0;
+      --orange:   #ff6b35;
+      --blue:     #4d9fff;
+      --purple:   #a78bfa;
+      --yellow:   #f5c842;
       --font-mono: 'DM Mono', monospace;
       --font-display: 'Syne', sans-serif;
     }
 
     html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; }
 
-    /* ── Layout ── */
     .app {
       display: grid;
-      grid-template-columns: 380px 1fr;
+      grid-template-columns: 390px 1fr;
       grid-template-rows: 44px 1fr;
       height: 100vh;
     }
@@ -76,18 +76,15 @@
       z-index: 5;
     }
 
-    /* ── Panels ── */
     .panel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
     .panel.active { display: flex; }
 
-    /* ── Section ── */
     .sec { border-bottom: 1px solid var(--border); padding: 12px 16px; }
     .sec-label {
       font-size: 10px; font-weight: 500; letter-spacing: 0.12em;
       color: var(--muted); text-transform: uppercase; margin-bottom: 8px;
     }
 
-    /* ── Inputs / Buttons ── */
     .input {
       width: 100%; background: var(--bg); border: 1px solid var(--border2);
       color: var(--text); font-family: var(--font-mono); font-size: 12px;
@@ -115,6 +112,7 @@
     .btn-ghost:disabled { opacity: .3; cursor: default; }
     .btn-danger { background: var(--orange); color: #fff; border: none; font-family: var(--font-mono); font-size: 11px; padding: 7px 10px; cursor: pointer; transition: opacity .15s; }
     .btn-danger:hover { opacity: .8; }
+    .btn-sm { padding: 4px 8px; font-size: 10px; }
 
     /* ── Suggestions ── */
     #suggestions {
@@ -125,6 +123,29 @@
     .sug-item { padding: 8px 12px; cursor: pointer; font-size: 11px; border-bottom: 1px solid var(--border); line-height: 1.4; }
     .sug-item:hover { background: var(--border); }
     .sug-item:last-child { border-bottom: none; }
+
+    /* ── Day filter bar ── */
+    .day-filter-bar {
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+    }
+    .day-filter-bar .sec-label { margin-bottom: 0; margin-right: 4px; }
+    .day-btn {
+      padding: 3px 8px; font-size: 10px; font-family: var(--font-mono);
+      background: var(--bg); border: 1px solid var(--border2); color: var(--muted2);
+      cursor: pointer; transition: all .15s; letter-spacing: 0.04em;
+    }
+    .day-btn:hover { color: var(--text); border-color: var(--muted2); }
+    .day-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+    .day-btn.all { border-color: var(--border2); }
+
+    /* ── Day summary row ── */
+    .day-summary {
+      padding: 6px 16px; background: var(--panel2); border-bottom: 1px solid var(--border);
+      font-size: 10px; color: var(--muted2); display: none;
+    }
+    .day-summary.show { display: flex; gap: 16px; }
+    .day-summary strong { color: var(--accent); }
 
     /* ── Stops list ── */
     .stops-list { flex: 1; overflow-y: auto; }
@@ -145,23 +166,58 @@
       background: var(--border2); color: var(--muted2);
     }
     .stop-name-text { flex: 1; font-size: 11px; line-height: 1.3; }
+    .stop-name-alias { color: var(--accent); font-size: 11px; }
     .stop-badge {
       font-size: 9px; padding: 2px 5px; letter-spacing: 0.08em;
       border: 1px solid; color: var(--muted2); border-color: var(--border2);
     }
     .stop-badge.start { color: var(--accent); border-color: var(--accent); }
     .stop-badge.end   { color: var(--orange); border-color: var(--orange); }
+    .stop-badge.day-tag {
+      color: var(--blue); border-color: var(--blue);
+      font-size: 9px;
+    }
     .stop-expand-icon { font-size: 10px; color: var(--muted); }
     .stop-body { display: none; padding: 0 16px 10px 44px; }
     .stop-body.open { display: block; }
+
+    /* leg drive time */
+    .leg-info {
+      font-size: 10px; color: var(--muted2); padding: 4px 0 6px 0;
+      border-bottom: 1px solid var(--border); margin-bottom: 8px; display: none;
+    }
+    .leg-info.show { display: flex; gap: 12px; }
+    .leg-info span { color: var(--blue); }
+
     .stop-note { width: 100%; background: var(--bg); border: 1px solid var(--border2); color: var(--text); font-family: var(--font-mono); font-size: 11px; padding: 6px 8px; resize: vertical; min-height: 56px; outline: none; transition: border-color .15s; line-height: 1.5; }
     .stop-note:focus { border-color: var(--accent); }
     .stop-note::placeholder { color: var(--muted); }
-    .stop-actions { display: flex; gap: 5px; margin-top: 5px; }
+    .stop-actions { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
     .stop-save { font-size: 10px; padding: 4px 8px; background: var(--accent); color: #000; border: none; font-family: var(--font-mono); cursor: pointer; }
     .stop-remove-btn { font-size: 10px; padding: 4px 8px; background: none; border: 1px solid var(--border2); color: var(--muted2); cursor: pointer; transition: color .15s; }
     .stop-remove-btn:hover { color: var(--orange); border-color: var(--orange); }
     .empty-state { padding: 24px 16px; font-size: 11px; color: var(--muted2); line-height: 1.8; }
+
+    /* rename input */
+    .rename-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; }
+    .rename-row label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+    .rename-input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border2);
+      color: var(--accent); font-family: var(--font-mono); font-size: 11px;
+      padding: 4px 7px; outline: none; transition: border-color .15s;
+    }
+    .rename-input:focus { border-color: var(--accent); }
+    .rename-input::placeholder { color: var(--muted); }
+
+    /* day assign */
+    .day-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; }
+    .day-row label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+    .day-select {
+      background: var(--bg); border: 1px solid var(--border2);
+      color: var(--text); font-family: var(--font-mono); font-size: 11px;
+      padding: 4px 7px; outline: none; cursor: pointer;
+    }
+    .day-select:focus { border-color: var(--accent); }
 
     /* ── Stats ── */
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
@@ -176,9 +232,23 @@
     /* ── Controls ── */
     .ctrl-sec { padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); }
 
-    /* ── Lock options ── */
     .check-label { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted2); cursor: pointer; }
     .check-label input { accent-color: var(--accent); cursor: pointer; }
+
+    /* ── Cloud sync ── */
+    .cloud-sec { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    .cloud-row { display: flex; gap: 5px; align-items: center; margin-bottom: 6px; }
+    .cloud-input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border2);
+      color: var(--text); font-family: var(--font-mono); font-size: 11px;
+      padding: 5px 8px; outline: none; transition: border-color .15s;
+    }
+    .cloud-input:focus { border-color: var(--blue); }
+    .cloud-input::placeholder { color: var(--muted); font-style: italic; }
+    .cloud-status { font-size: 10px; color: var(--muted2); }
+    .cloud-status.ok { color: var(--accent); }
+    .cloud-status.err { color: var(--orange); }
+    .cloud-status.busy { color: var(--blue); }
 
     /* ── POI Panel ── */
     .poi-section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -202,7 +272,6 @@
     .poi-toggle.on::after { left: 16px; }
     .poi-remove-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
     .poi-remove-btn:hover { color: var(--orange); }
-
     .poi-legend { margin-top: 10px; font-size: 10px; color: var(--muted2); line-height: 1.8; }
     .poi-legend span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
 
@@ -224,10 +293,8 @@
     .log-e.err  { color: var(--orange); }
     .log-e.info { color: var(--blue); }
 
-    /* ── Map ── */
     #map { grid-row: 2; }
 
-    /* ── Toast ── */
     .toast {
       position: fixed; bottom: 20px; right: 20px; z-index: 9999;
       background: var(--panel2); border: 1px solid var(--accent);
@@ -238,7 +305,6 @@
     }
     .toast.show { opacity: 1; }
 
-    /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -263,6 +329,7 @@
       <button class="tab active" data-tab="stops">Stops</button>
       <button class="tab" data-tab="poi">Layers</button>
       <button class="tab" data-tab="notes">Notes</button>
+      <button class="tab" data-tab="cloud">☁ Sync</button>
     </nav>
     <div class="topbar-spacer"></div>
     <span class="save-pill" id="save-pill">● saved</span>
@@ -289,6 +356,19 @@
           <label class="check-label"><input type="checkbox" id="lock-start" /> Lock first as start</label>
           <label class="check-label"><input type="checkbox" id="lock-end" /> Lock last as end</label>
         </div>
+      </div>
+
+      <!-- Day Filter -->
+      <div class="day-filter-bar" id="day-filter-bar">
+        <span class="sec-label">Day</span>
+        <button class="day-btn all active" data-day="all">ALL</button>
+      </div>
+
+      <!-- Day Summary -->
+      <div class="day-summary" id="day-summary">
+        <span>Stops: <strong id="ds-stops">0</strong></span>
+        <span>Drive: <strong id="ds-drive">—</strong></span>
+        <span>Distance: <strong id="ds-dist">—</strong></span>
       </div>
 
       <!-- Stops List -->
@@ -383,40 +463,94 @@
       </div>
     </div>
 
+    <!-- ══ CLOUD SYNC PANEL ══ -->
+    <div class="panel" id="panel-cloud">
+      <div class="sec">
+        <div class="sec-label">☁ Cloud Sync via JSONBin</div>
+        <div style="font-size:11px; color:var(--muted2); line-height:1.7; margin-bottom:10px;">
+          Sync your route across any device. Uses <strong style="color:var(--text)">JSONBin.io</strong> (free). Steps:
+          <br/>1. Sign up at <a href="https://jsonbin.io" target="_blank" style="color:var(--blue)">jsonbin.io</a>
+          <br/>2. Create an API key (Master Key)
+          <br/>3. Paste it below and click INIT
+        </div>
+        <div class="cloud-row">
+          <input type="password" class="cloud-input" id="cloud-api-key" placeholder="$2a$10$… (Master Key)" />
+          <button class="btn btn-sm" id="cloud-init-btn">INIT</button>
+        </div>
+        <div style="font-size:10px; color:var(--muted2); margin-bottom:8px;">Bin ID (auto-saved): <span id="cloud-bin-id" style="color:var(--text)">—</span></div>
+        <div class="cloud-row">
+          <input type="text" class="cloud-input" id="cloud-bin-input" placeholder="Or paste existing Bin ID to link devices" />
+          <button class="btn-ghost btn-sm" id="cloud-link-btn">LINK</button>
+        </div>
+      </div>
+
+      <div class="sec" style="flex:1">
+        <div class="sec-label">Sync Actions</div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+          <button class="btn" id="cloud-push-btn" style="width:100%" disabled>↑ PUSH — Save to cloud</button>
+          <button class="btn-ghost" id="cloud-pull-btn" style="width:100%" disabled>↓ PULL — Load from cloud</button>
+          <div class="cloud-status" id="cloud-status">Not configured. Add your API key above.</div>
+        </div>
+
+        <div style="margin-top:18px; padding-top:12px; border-top:1px solid var(--border);">
+          <div class="sec-label">Export / Import (offline backup)</div>
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <button class="btn-ghost" id="export-json-btn" style="flex:1; font-size:10px">EXPORT .JSON</button>
+            <label class="btn-ghost" style="flex:1; font-size:10px; text-align:center; cursor:pointer; padding:7px 10px;">
+              IMPORT .JSON
+              <input type="file" id="import-json-input" accept=".json" style="display:none" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="log" id="log-cloud" style="border-top:1px solid var(--border)"></div>
+    </div>
+
   </aside>
 
   <!-- Map -->
   <div id="map"></div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+const TOTAL_DAYS = 19;
+const MAX_SPEED_KMH = 60; // assumed max driving speed
+
+// ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
-const STORAGE_KEY = 'routeopt_v2';
+const STORAGE_KEY = 'routeopt_v3';
 
 const state = {
-  stops: [],        // [{name, lat, lng, note}]
+  stops: [],        // [{name, alias, lat, lng, note, day}]
   distMatrix: null,
   durMatrix: null,
   originalOrder: null,
   optimizedOrder: null,
   currentView: null,
-  poiLayers: [],    // [{id, name, color, visible, markers:L.LayerGroup}]
+  poiLayers: [],
+  filterDay: 'all', // 'all' or 1..19
 };
 
 // ═══════════════════════════════════════════════════════════════
-// PERSISTENCE
+// PERSISTENCE — localStorage
 // ═══════════════════════════════════════════════════════════════
 function saveState() {
   const data = {
     stops: state.stops,
     notes: document.getElementById('notes-area').value,
     poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
+    cloud: {
+      apiKey: document.getElementById('cloud-api-key').value,
+      binId: document.getElementById('cloud-bin-id').textContent,
+    }
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
   setPill('● saved');
@@ -427,14 +561,46 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
-    if (data.stops) state.stops = data.stops;
+    if (data.stops) state.stops = data.stops.map(s => ({ alias:'', day: null, ...s }));
     if (data.notes) document.getElementById('notes-area').value = data.notes;
     if (data.poiLayersMeta) {
       data.poiLayersMeta.forEach(meta => {
         if (meta.geojson) addPoiLayer(meta.name, meta.geojson, meta.color, meta.id, meta.visible);
       });
     }
+    if (data.cloud) {
+      if (data.cloud.apiKey) document.getElementById('cloud-api-key').value = data.cloud.apiKey;
+      if (data.cloud.binId && data.cloud.binId !== '—') {
+        document.getElementById('cloud-bin-id').textContent = data.cloud.binId;
+        enableCloudButtons();
+      }
+    }
   } catch(e) { log('Could not restore saved session', 'err'); }
+}
+
+function getExportData() {
+  return {
+    stops: state.stops,
+    notes: document.getElementById('notes-area').value,
+    poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
+  };
+}
+
+function applyImportData(data) {
+  if (data.stops) state.stops = data.stops.map(s => ({ alias:'', day: null, ...s }));
+  if (data.notes) document.getElementById('notes-area').value = data.notes;
+  state.poiLayers.forEach(l => map.removeLayer(l.markers));
+  state.poiLayers = [];
+  if (data.poiLayersMeta) {
+    data.poiLayersMeta.forEach(meta => {
+      if (meta.geojson) addPoiLayer(meta.name, meta.geojson, meta.color, meta.id, meta.visible);
+    });
+  }
+  invalidateMatrix();
+  renderStopsList();
+  refreshMarkers();
+  updateButtons();
+  renderDayFilter();
 }
 
 function setPill(msg) {
@@ -465,7 +631,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// LOGGING
+// LOGGING / TOAST
 // ═══════════════════════════════════════════════════════════════
 function log(msg, type = '', target = 'log') {
   const el = document.getElementById(target);
@@ -514,7 +680,7 @@ async function fetchSuggestions(q) {
       div.textContent = item.display_name;
       div.addEventListener('mousedown', e => {
         e.preventDefault();
-        addStop({ name: item.display_name.split(',')[0].trim(), lat: +item.lat, lng: +item.lon, note: '' });
+        addStop({ name: item.display_name.split(',')[0].trim(), alias: '', lat: +item.lat, lng: +item.lon, note: '', day: null });
         searchInput.value = '';
         suggestionsEl.innerHTML = '';
       });
@@ -540,9 +706,9 @@ map.on('click', async e => {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
     const data = await res.json();
     const name = data.name || data.address?.road || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    addStop({ name, lat, lng, note: '' });
+    addStop({ name, alias: '', lat, lng, note: '', day: null });
   } catch {
-    addStop({ name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, lat, lng, note: '' });
+    addStop({ name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, alias: '', lat, lng, note: '', day: null });
   }
 });
 
@@ -554,16 +720,18 @@ const COLORS = ['#3dffa0','#4d9fff','#a78bfa','#ff6b35','#f5c842','#ff9eee','#7b
 function addStop(stop) {
   state.stops.push(stop);
   invalidateMatrix();
+  renderDayFilter();
   renderStopsList();
   refreshMarkers();
   updateButtons();
-  log(`Added: ${stop.name}`, 'ok');
+  log(`Added: ${stop.alias || stop.name}`, 'ok');
   saveState();
 }
 
 function removeStop(i) {
   state.stops.splice(i, 1);
   invalidateMatrix();
+  renderDayFilter();
   renderStopsList();
   refreshMarkers();
   clearRoute();
@@ -571,10 +739,18 @@ function removeStop(i) {
   saveState();
 }
 
-function saveNote(i, note) {
+function saveStopMeta(i) {
+  // reads alias, day, note from DOM
+  const alias = document.getElementById(`alias-${i}`)?.value.trim() || '';
+  const day = parseInt(document.getElementById(`day-select-${i}`)?.value) || null;
+  const note = document.getElementById(`note-${i}`)?.value || '';
+  state.stops[i].alias = alias;
+  state.stops[i].day = isNaN(day) ? null : day;
   state.stops[i].note = note;
   saveState();
-  toast('Note saved');
+  renderDayFilter();
+  renderStopsList();
+  toast('Stop saved');
 }
 
 function invalidateMatrix() {
@@ -583,40 +759,189 @@ function invalidateMatrix() {
   resetStats();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// DISPLAY NAME helper
+// ═══════════════════════════════════════════════════════════════
+function displayName(s) {
+  return s.alias ? s.alias : s.name;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DAY FILTER
+// ═══════════════════════════════════════════════════════════════
+function renderDayFilter() {
+  const bar = document.getElementById('day-filter-bar');
+  // collect used days
+  const usedDays = new Set(state.stops.map(s => s.day).filter(Boolean));
+  bar.innerHTML = '<span class="sec-label">Day</span>';
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'day-btn all' + (state.filterDay === 'all' ? ' active' : '');
+  allBtn.dataset.day = 'all';
+  allBtn.textContent = 'ALL';
+  allBtn.addEventListener('click', () => setDayFilter('all'));
+  bar.appendChild(allBtn);
+
+  // Show days 1-19 that have stops, plus a quick-add for assigning
+  const days = [];
+  for (let d = 1; d <= TOTAL_DAYS; d++) {
+    if (usedDays.has(d)) days.push(d);
+  }
+  days.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'day-btn' + (state.filterDay === d ? ' active' : '');
+    btn.dataset.day = d;
+    btn.textContent = `D${d}`;
+    btn.addEventListener('click', () => setDayFilter(d));
+    bar.appendChild(btn);
+  });
+}
+
+function setDayFilter(day) {
+  state.filterDay = day;
+  renderDayFilter();
+  renderStopsList();
+  updateDaySummary();
+  // refit map to filtered stops
+  const filtered = getFilteredStops();
+  if (filtered.length > 0) {
+    const bounds = L.latLngBounds(filtered.map(s => [s.lat, s.lng]));
+    map.fitBounds(bounds, { padding: [60, 60] });
+  }
+}
+
+function getFilteredStops() {
+  if (state.filterDay === 'all') return state.stops;
+  return state.stops.filter(s => s.day === state.filterDay);
+}
+
+function updateDaySummary() {
+  const el = document.getElementById('day-summary');
+  if (state.filterDay === 'all') { el.classList.remove('show'); return; }
+  const stops = getFilteredStops();
+  el.classList.toggle('show', stops.length > 0);
+  document.getElementById('ds-stops').textContent = stops.length;
+
+  // compute naive drive time using haversine distances at max speed
+  let totalKm = 0;
+  for (let i = 0; i < stops.length - 1; i++) {
+    totalKm += haversineKm(stops[i], stops[i+1]);
+  }
+  const hours = totalKm / MAX_SPEED_KMH;
+  document.getElementById('ds-drive').textContent = fmtHours(hours);
+  document.getElementById('ds-dist').textContent = totalKm.toFixed(0) + ' km';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HAVERSINE (for local estimates without OSRM)
+// ═══════════════════════════════════════════════════════════════
+function haversineKm(a, b) {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const x = Math.sin(dLat/2) * Math.sin(dLat/2) +
+             Math.cos(a.lat * Math.PI/180) * Math.cos(b.lat * Math.PI/180) *
+             Math.sin(dLng/2) * Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+function fmtHours(h) {
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  if (hrs === 0) return `${mins}m`;
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER STOPS
+// ═══════════════════════════════════════════════════════════════
 function renderStopsList() {
   const el = document.getElementById('stops-list');
-  const n = state.stops.length;
-  document.getElementById('stop-count').textContent = n;
-  if (!n) {
+  const visibleStops = getFilteredStops();
+  const allStops = state.stops;
+  document.getElementById('stop-count').textContent = allStops.length;
+
+  if (!allStops.length) {
     el.innerHTML = '<div class="empty-state">No waypoints yet.<br/>Search above or click the map.</div>';
     return;
   }
+  if (!visibleStops.length) {
+    el.innerHTML = '<div class="empty-state">No stops assigned to this day yet.<br/>Expand a stop to assign it.</div>';
+    return;
+  }
+
   const lockStart = document.getElementById('lock-start').checked;
   const lockEnd   = document.getElementById('lock-end').checked;
   el.innerHTML = '';
-  state.stops.forEach((s, i) => {
+
+  // Get the full indices of visible stops
+  const visibleIndices = allStops.map((s, i) => ({ s, i })).filter(({ s }) => {
+    if (state.filterDay === 'all') return true;
+    return s.day === state.filterDay;
+  });
+
+  visibleIndices.forEach(({ s, i }, pos) => {
     const isStart = lockStart && i === 0;
-    const isEnd   = lockEnd && i === n - 1;
+    const isEnd   = lockEnd && i === allStops.length - 1;
     const div = document.createElement('div');
     div.className = 'stop-item';
     const color = COLORS[i % COLORS.length];
+
+    // Leg drive time (haversine estimate) from PREVIOUS stop in the same filtered list
+    let legHtml = '';
+    if (pos > 0) {
+      const prevStop = visibleIndices[pos - 1].s;
+      const km = haversineKm(prevStop, s);
+      const hrs = km / MAX_SPEED_KMH;
+      legHtml = `<div class="leg-info show" id="leg-${i}">
+        <span>▲ ${km.toFixed(0)} km</span>
+        <span>~${fmtHours(hrs)} drive <span style="font-size:9px;color:var(--muted)">(est. @${MAX_SPEED_KMH}km/h)</span></span>
+      </div>`;
+    }
+
+    const dName = displayName(s);
+    const dayLabel = s.day ? `D${s.day}` : '';
+
+    // Build day options
+    let dayOptions = '<option value="">— unassigned —</option>';
+    for (let d = 1; d <= TOTAL_DAYS; d++) {
+      dayOptions += `<option value="${d}" ${s.day === d ? 'selected' : ''}>Day ${d}</option>`;
+    }
+
     div.innerHTML = `
       <div class="stop-header" data-idx="${i}">
         <div class="stop-num" style="background:${color};color:#000">${i+1}</div>
-        <div class="stop-name-text">${s.name}</div>
+        <div class="stop-name-text">${s.alias ? `<span class="stop-name-alias">${s.alias}</span>` : dName}</div>
+        ${dayLabel ? `<span class="stop-badge day-tag">${dayLabel}</span>` : ''}
         ${isStart ? '<span class="stop-badge start">START</span>' : ''}
         ${isEnd   ? '<span class="stop-badge end">END</span>'   : ''}
         ${s.note  ? '<span style="font-size:10px;color:var(--muted2)" title="Has note">✎</span>' : ''}
         <span class="stop-expand-icon">▾</span>
       </div>
       <div class="stop-body" id="stop-body-${i}">
-        <textarea class="stop-note" id="note-${i}" placeholder="Add a note for this stop…&#10;e.g. Best campsite in Wanaka, book ahead">${s.note||''}</textarea>
+        ${legHtml}
+
+        <div class="rename-row">
+          <label>Custom name</label>
+          <input type="text" class="rename-input" id="alias-${i}" placeholder="${s.name}" value="${s.alias || ''}" />
+        </div>
+
+        <div class="day-row">
+          <label>Assign day</label>
+          <select class="day-select" id="day-select-${i}">
+            ${dayOptions}
+          </select>
+        </div>
+
+        <textarea class="stop-note" id="note-${i}" placeholder="Add a note for this stop…&#10;e.g. Best campsite, book ahead">${s.note||''}</textarea>
         <div class="stop-actions">
-          <button class="stop-save" data-idx="${i}">Save note</button>
+          <button class="stop-save" data-idx="${i}">Save</button>
           <button class="stop-remove-btn" data-idx="${i}">Remove stop</button>
+          <span style="font-size:10px;color:var(--muted2);margin-left:auto;align-self:center;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">⚑ ${s.name}</span>
         </div>
       </div>
     `;
+
     div.querySelector('.stop-header').addEventListener('click', () => {
       const body = document.getElementById(`stop-body-${i}`);
       const icon = div.querySelector('.stop-expand-icon');
@@ -625,8 +950,7 @@ function renderStopsList() {
     });
     div.querySelector('.stop-save').addEventListener('click', e => {
       e.stopPropagation();
-      saveNote(parseInt(e.target.dataset.idx), document.getElementById(`note-${e.target.dataset.idx}`).value);
-      renderStopsList(); // refresh note indicator
+      saveStopMeta(parseInt(e.target.dataset.idx));
     });
     div.querySelector('.stop-remove-btn').addEventListener('click', e => {
       e.stopPropagation();
@@ -634,6 +958,8 @@ function renderStopsList() {
     });
     el.appendChild(div);
   });
+
+  updateDaySummary();
 }
 
 function updateButtons() {
@@ -683,8 +1009,12 @@ function renderOptimizedMarkers(order) {
 }
 
 function popupHtml(s, num, origNum) {
+  const name = displayName(s);
+  const dayStr = s.day ? `<div style="font-size:10px;color:var(--blue);margin-top:2px">Day ${s.day}</div>` : '';
   return `<div style="font-family:DM Mono,monospace;min-width:140px">
-    <b style="font-size:12px">${num}. ${s.name}</b>
+    <b style="font-size:12px">${num}. ${name}</b>
+    ${s.alias ? `<div style="font-size:10px;color:#888;margin-top:1px">${s.name}</div>` : ''}
+    ${dayStr}
     ${origNum ? `<div style="font-size:10px;color:#888;margin-top:2px">Original stop #${origNum}</div>` : ''}
     ${s.note ? `<div style="font-size:11px;margin-top:6px;color:#aaa;line-height:1.4;white-space:pre-wrap">${s.note}</div>` : ''}
   </div>`;
@@ -723,7 +1053,7 @@ async function fetchRoute(orderedStops) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TSP: Nearest Neighbour + 2-opt
+// TSP
 // ═══════════════════════════════════════════════════════════════
 function nearestNeighbour(dur, n, startIdx, endIdx, lockStart, lockEnd) {
   const inner = [];
@@ -798,10 +1128,16 @@ document.getElementById('optimize-btn').addEventListener('click', async () => {
     const origDistM = routeCost(origOrder, dist);
     const optDistM  = routeCost(opt, dist);
 
-    document.getElementById('orig-time').textContent = fmtDur(origSec);
-    document.getElementById('opt-time').textContent  = fmtDur(optSec);
-    document.getElementById('orig-dist').textContent = (origDistM/1000).toFixed(0);
-    document.getElementById('opt-dist').textContent  = (optDistM/1000).toFixed(0);
+    // Clamp to max speed: OSRM gives real routing times, but also show our estimate
+    const origKm = origDistM / 1000;
+    const optKm  = optDistM / 1000;
+    const origEstSec = (origKm / MAX_SPEED_KMH) * 3600;
+    const optEstSec  = (optKm  / MAX_SPEED_KMH) * 3600;
+
+    document.getElementById('orig-time').textContent = fmtDur(Math.max(origSec, origEstSec));
+    document.getElementById('opt-time').textContent  = fmtDur(Math.max(optSec, optEstSec));
+    document.getElementById('orig-dist').textContent = origKm.toFixed(0);
+    document.getElementById('opt-dist').textContent  = optKm.toFixed(0);
 
     const savMin = Math.round((origSec - optSec) / 60);
     const savKm  = ((origDistM - optDistM)/1000).toFixed(0);
@@ -809,7 +1145,7 @@ document.getElementById('optimize-btn').addEventListener('click', async () => {
       document.getElementById('savings-val').textContent = `${savMin} min / ${savKm} km`;
       document.getElementById('savings-bar').style.display = 'block';
     }
-    log(`Optimized: ${fmtDur(origSec)} → ${fmtDur(optSec)}`, 'ok');
+    log(`Optimized: ${fmtDur(origSec)} → ${fmtDur(optSec)} (OSRM routing)`, 'ok');
     await drawRoute(opt, 'var(--accent)');
     state.currentView = 'optimized';
     renderOptimizedMarkers(opt);
@@ -855,6 +1191,7 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   if (!confirm('Clear all stops? This cannot be undone.')) return;
   state.stops = []; invalidateMatrix();
   clearRoute(); markerLayer.clearLayers();
+  renderDayFilter();
   renderStopsList(); updateButtons();
   document.getElementById('log').innerHTML = '';
   saveState();
@@ -863,6 +1200,138 @@ document.getElementById('reset-btn').addEventListener('click', () => {
 
 document.getElementById('lock-start').addEventListener('change', renderStopsList);
 document.getElementById('lock-end').addEventListener('change', renderStopsList);
+
+// ═══════════════════════════════════════════════════════════════
+// CLOUD SYNC — JSONBin.io
+// ═══════════════════════════════════════════════════════════════
+const JSONBIN_BASE = 'https://api.jsonbin.io/v3';
+
+function getCloudKey() { return document.getElementById('cloud-api-key').value.trim(); }
+function getBinId()    { return document.getElementById('cloud-bin-id').textContent.trim(); }
+
+function enableCloudButtons() {
+  document.getElementById('cloud-push-btn').disabled = false;
+  document.getElementById('cloud-pull-btn').disabled = false;
+}
+
+function cloudStatus(msg, cls) {
+  const el = document.getElementById('cloud-status');
+  el.textContent = msg;
+  el.className = 'cloud-status' + (cls ? ' ' + cls : '');
+}
+
+// INIT: create a new bin
+document.getElementById('cloud-init-btn').addEventListener('click', async () => {
+  const key = getCloudKey();
+  if (!key) { cloudStatus('Paste your JSONBin Master Key first.', 'err'); return; }
+  cloudStatus('Creating bin…', 'busy');
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/b`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key, 'X-Bin-Name': 'routeopt-nz' },
+      body: JSON.stringify(getExportData())
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || res.status);
+    const binId = data.metadata.id;
+    document.getElementById('cloud-bin-id').textContent = binId;
+    saveState();
+    enableCloudButtons();
+    cloudStatus(`Bin created: ${binId}`, 'ok');
+    log('Cloud bin created: ' + binId, 'ok', 'log-cloud');
+    toast('Cloud bin created ✓');
+  } catch(e) {
+    cloudStatus('Error: ' + e.message, 'err');
+    log('Cloud init error: ' + e.message, 'err', 'log-cloud');
+  }
+});
+
+// LINK: connect to existing bin
+document.getElementById('cloud-link-btn').addEventListener('click', () => {
+  const id = document.getElementById('cloud-bin-input').value.trim();
+  if (!id) { cloudStatus('Paste a Bin ID to link.', 'err'); return; }
+  document.getElementById('cloud-bin-id').textContent = id;
+  saveState();
+  enableCloudButtons();
+  cloudStatus(`Linked to bin: ${id}`, 'ok');
+  toast('Bin linked ✓');
+});
+
+// PUSH
+document.getElementById('cloud-push-btn').addEventListener('click', async () => {
+  const key = getCloudKey();
+  const binId = getBinId();
+  if (!key || binId === '—') { cloudStatus('Configure key + bin first.', 'err'); return; }
+  cloudStatus('Pushing…', 'busy');
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/b/${binId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+      body: JSON.stringify(getExportData())
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.message || res.status); }
+    cloudStatus('Pushed ✓ ' + new Date().toLocaleTimeString(), 'ok');
+    log('Pushed to cloud', 'ok', 'log-cloud');
+    toast('Pushed to cloud ✓');
+  } catch(e) {
+    cloudStatus('Push error: ' + e.message, 'err');
+    log('Push error: ' + e.message, 'err', 'log-cloud');
+  }
+});
+
+// PULL
+document.getElementById('cloud-pull-btn').addEventListener('click', async () => {
+  const key = getCloudKey();
+  const binId = getBinId();
+  if (!key || binId === '—') { cloudStatus('Configure key + bin first.', 'err'); return; }
+  if (!confirm('Pull from cloud? This will overwrite your current local stops and notes.')) return;
+  cloudStatus('Pulling…', 'busy');
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/b/${binId}/latest`, {
+      headers: { 'X-Master-Key': key }
+    });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.message || res.status); }
+    const data = await res.json();
+    applyImportData(data.record);
+    saveState();
+    cloudStatus('Pulled ✓ ' + new Date().toLocaleTimeString(), 'ok');
+    log('Pulled from cloud', 'ok', 'log-cloud');
+    toast('Pulled from cloud ✓');
+  } catch(e) {
+    cloudStatus('Pull error: ' + e.message, 'err');
+    log('Pull error: ' + e.message, 'err', 'log-cloud');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT / IMPORT JSON (offline backup)
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('export-json-btn').addEventListener('click', () => {
+  const data = getExportData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `routeopt-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast('Backup exported');
+});
+
+document.getElementById('import-json-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('Import this file? Your current stops and notes will be replaced.')) { e.target.value = ''; return; }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    applyImportData(data);
+    saveState();
+    toast('Imported ✓');
+    log('Imported from file', 'ok', 'log-cloud');
+  } catch(err) {
+    toast('Import failed: invalid JSON');
+  }
+  e.target.value = '';
+});
 
 // ═══════════════════════════════════════════════════════════════
 // POI LAYERS
@@ -878,9 +1347,7 @@ function detectPoiType(props) {
 }
 
 function makePoiIcon(type) {
-  const icons = { fuel: '⛽', dump: '💩', camp: '🚙', default: '📍' };
-  const colors = POI_COLORS;
-  const c = colors[type] || colors.default;
+  const icons = { fuel: '⛽', dump: '🚿', camp: '⛺', default: '📍' };
   const ic = icons[type] || icons.default;
   return L.divIcon({
     html: `<div style="font-size:16px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.8))">${ic}</div>`,
@@ -915,7 +1382,6 @@ function addPoiLayer(name, geojson, colorOverride, existingId, visible = true) {
     const [lng, lat] = f.geometry.coordinates;
     const props = f.properties || {};
     const type = props.type || detectPoiType(props);
-    const color = colorOverride || POI_COLORS[type] || POI_COLORS.default;
     const marker = L.marker([lat, lng], { icon: makePoiIcon(type) });
     const name_ = props.name || props.Name || props.NAME || props.title || `${type} point`;
     marker.bindPopup(`<div style="font-family:DM Mono,monospace;font-size:11px">
@@ -979,7 +1445,6 @@ function renderPoiLayersList() {
   });
 }
 
-// File upload handler
 document.getElementById('poi-file-input').addEventListener('change', async e => {
   const files = Array.from(e.target.files);
   for (const file of files) {
@@ -1004,7 +1469,6 @@ document.getElementById('poi-file-input').addEventListener('change', async e => 
   e.target.value = '';
 });
 
-// Drag & drop
 const uploadZone = document.getElementById('upload-zone');
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = 'var(--accent)'; });
 uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = ''; });
@@ -1040,19 +1504,10 @@ document.getElementById('notes-export-btn').addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// AUTO-SAVE stops on edit
-// ═══════════════════════════════════════════════════════════════
-let stopsAutoSaveTimer = null;
-function scheduleStopsSave() {
-  clearTimeout(stopsAutoSaveTimer);
-  setPill('● unsaved');
-  stopsAutoSaveTimer = setTimeout(saveState, 600);
-}
-
-// ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
 loadState();
+renderDayFilter();
 renderStopsList();
 refreshMarkers();
 renderPoiLayersList();
