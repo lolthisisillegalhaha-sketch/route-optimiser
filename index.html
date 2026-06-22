@@ -916,7 +916,7 @@ function renderStopsList() {
       const km = haversineKm(prevStop, s);
       const hrs = km / MAX_SPEED_KMH;
       
-      legHtml = `<div class="leg-info show" id="leg-${i}">
+      legHtml = `<div class="leg-info show" id="leg-${i}" style="padding: 6px 16px 6px 44px; border-bottom: none; margin: 0; background: rgba(255,255,255,0.02);">
         <span id="leg-dist-${i}">▲ ${km.toFixed(0)} km</span>
         <span id="leg-dur-${i}">~${fmtHours(hrs)} drive <span style="font-size:9px;color:var(--muted)">(fetching real route...)</span></span>
       </div>`;
@@ -942,6 +942,7 @@ function renderStopsList() {
     }
 
     div.innerHTML = `
+      ${legHtml}
       <div class="stop-header" data-idx="${i}" onclick="focusOnStop(${s.lat}, ${s.lng})">
         <div class="stop-num" style="background:${color};color:#000">${i+1}</div>
         <div class="stop-name-text">${s.alias ? `<span class="stop-name-alias">${s.alias}</span>` : dName}</div>
@@ -952,8 +953,6 @@ function renderStopsList() {
         <span class="stop-expand-icon">▾</span>
       </div>
       <div class="stop-body" id="stop-body-${i}">
-        ${legHtml}
-
         <div class="rename-row">
           <label>Custom name</label>
           <input type="text" class="rename-input" id="alias-${i}" placeholder="${s.name}" value="${s.alias || ''}" />
