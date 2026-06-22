@@ -587,9 +587,14 @@ function setPill(msg) {
 // MAP
 // ═══════════════════════════════════════════════════════════════
 const map = L.map('map', { zoomControl: true }).setView([-43.8, 170.5], 6);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
+L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+  maxZoom: 20,
+  attribution: '© Google'
 }).addTo(map);
+  
+//L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  //attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
+//}).addTo(map);
 
 let routeLayer = null;
 let markerLayer = L.layerGroup().addTo(map);
