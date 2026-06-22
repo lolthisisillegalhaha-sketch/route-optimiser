@@ -654,64 +654,25 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.sec')) suggestionsEl.innerHTML = '';
 });
 
-aasync function fetchSuggestions(q) {
+async function fetchSuggestions(q) {
   try {
-    // Get the current center of the map to prioritize nearby locations
-    const center = map.getCenter();
-    
-    // We filter using Photon API, biasing results around the map's current viewing area
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=${center.lat}&lon=${center.lng}&limit=6&lang=en`;
-    
-    const res = await fetch(url);
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     const data = await res.json();
     suggestionsEl.innerHTML = '';
-    
-    if (!data.features || data.features.length === 0) {
+    data.forEach(item => {
       const div = document.createElement('div');
       div.className = 'sug-item';
-      div.style.color = 'var(--muted2)';
-      div.style.cursor = 'default';
-      div.textContent = 'No results found';
-      suggestionsEl.appendChild(div);
-      return;
-    }
-
-    data.features.forEach(item => {
-      const p = item.properties;
-      const coords = item.geometry.coordinates; // Photon returns [lng, lat]
-
-      // Construct a clean display string showing local context
-      const name = p.name || 'Unknown Location';
-      const locality = p.city || p.town || p.village || p.district || '';
-      const region = p.state || '';
-      
-      const contextParts = [locality, region].filter(Boolean).join(', ');
-      const fullDisplayName = contextParts ? `${name} — ${contextParts}` : name;
-
-      const div = document.createElement('div');
-      div.className = 'sug-item';
-      div.textContent = fullDisplayName;
-      
+      div.textContent = item.display_name;
       div.addEventListener('mousedown', e => {
         e.preventDefault();
-        // Add the stop using Photon's coordinates
-        addStop({ 
-          name: name, 
-          alias: '', 
-          lat: coords[1], // Latitude
-          lng: coords[0], // Longitude
-          note: '', 
-          day: null 
-        });
+        addStop({ name: item.display_name.split(',')[0].trim(), alias: '', lat: +item.lat, lng: +item.lon, note: '', day: null });
         searchInput.value = '';
         suggestionsEl.innerHTML = '';
       });
       suggestionsEl.appendChild(div);
     });
-  } catch(e) { 
-    console.error("Geocoding error: ", e);
-    log('Geocoding search failed', 'err'); 
-  }
+  } catch(e) { log('Geocoding error', 'err'); }
 }
 
 async function getRouteDetails(stop1, stop2) {
