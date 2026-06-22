@@ -136,7 +136,7 @@
     }
     .day-btn:hover { color: var(--text); border-color: var(--muted2); }
     .day-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
-    .day-btn.all { border-color: var(--border2); }
+    .day-btn.all, .day-btn.unassigned { border-color: var(--border2); }
 
     /* ── Day summary row ── */
     .day-summary {
@@ -318,7 +318,6 @@
 <body>
 <div class="app">
 
-  <!-- Topbar -->
   <header class="topbar">
     <div>
       <div class="logo">ROUTEOPT</div>
@@ -335,13 +334,10 @@
     <span id="status-bar">ready</span>
   </header>
 
-  <!-- Sidebar -->
   <aside class="sidebar">
 
-    <!-- ══ STOPS PANEL ══ -->
     <div class="panel active" id="panel-stops">
 
-      <!-- Search -->
       <div class="sec">
         <div class="sec-label">Add Stop</div>
         <div style="position:relative">
@@ -357,20 +353,18 @@
         </div>
       </div>
 
-      <!-- Day Filter -->
       <div class="day-filter-bar" id="day-filter-bar">
         <span class="sec-label">Day</span>
         <button class="day-btn all active" data-day="all">ALL</button>
+        <button class="day-btn unassigned" data-day="unassigned">UNASSIGNED</button>
       </div>
 
-      <!-- Day Summary -->
       <div class="day-summary" id="day-summary">
         <span>Stops: <strong id="ds-stops">0</strong></span>
         <span>Drive: <strong id="ds-drive">—</strong></span>
         <span>Distance: <strong id="ds-dist">—</strong></span>
       </div>
 
-      <!-- Stops List -->
       <div class="sec" style="padding:8px 0; flex:1; overflow:hidden; display:flex; flex-direction:column; min-height:0;">
         <div class="sec-label" style="padding:0 16px; margin-bottom:4px;">
           Waypoints <span id="stop-count" style="color:var(--accent)">0</span>
@@ -380,7 +374,6 @@
         </div>
       </div>
 
-      <!-- Stats -->
       <div style="border-top:1px solid var(--border)">
         <div class="stats-grid">
           <div class="stat-cell">
@@ -403,10 +396,9 @@
         <div class="savings-row" id="savings-bar">Saves <strong id="savings-val"></strong></div>
       </div>
 
-      <!-- Controls -->
       <div class="ctrl-sec">
         <div class="row">
-          <button class="btn" id="optimize-btn" style="flex:1" disabled>OPTIMIZE ROUTE</button>
+          <button class="btn" id="optimize-btn" style="flex:1" disabled>OPTIMIZE CURRENT VIEW</button>
           <button class="btn-ghost" id="reset-btn">CLEAR ALL</button>
         </div>
         <div class="row">
@@ -415,11 +407,9 @@
         </div>
       </div>
 
-      <!-- Log -->
       <div class="log" id="log"></div>
     </div>
 
-    <!-- ══ POI PANEL ══ -->
     <div class="panel" id="panel-poi">
       <div class="poi-section">
         <div class="sec-label">Upload POI Layer</div>
@@ -447,7 +437,6 @@
       <div class="log" id="log-poi" style="border-top:1px solid var(--border)"></div>
     </div>
 
-    <!-- ══ NOTES PANEL ══ -->
     <div class="panel" id="panel-notes">
       <div class="sec">
         <div class="sec-label">Trip Notes</div>
@@ -462,7 +451,6 @@
       </div>
     </div>
 
-    <!-- ══ CLOUD SYNC PANEL ══ -->
     <div class="panel" id="panel-cloud">
       <div class="sec">
         <div class="sec-label">☁ Google Drive Sync</div>
@@ -496,7 +484,6 @@
 
   </aside>
 
-  <!-- Map -->
   <div id="map"></div>
 </div>
 
@@ -510,6 +497,14 @@
 const TOTAL_DAYS = 19;
 const MAX_SPEED_KMH = 60; // assumed max driving speed
 
+// Dedicated colors for up to 19 days to distinguish paths on "ALL" view
+const DAY_ROUTE_COLORS = [
+  '#3dffa0', '#4d9fff', '#a78bfa', '#ff6b35', '#f5c842', 
+  '#ff9eee', '#7bffe0', '#ffb34a', '#f87171', '#34d399',
+  '#eab308', '#ec4899', '#3b82f6', '#10b981', '#f97316', 
+  '#8b5cf6', '#06b6d4', '#f43f5e', '#14b8a6'
+];
+
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
@@ -517,13 +512,12 @@ const STORAGE_KEY = 'routeopt_v3';
 
 const state = {
   stops: [],        // [{name, alias, lat, lng, note, day}]
-  distMatrix: null,
-  durMatrix: null,
-  originalOrder: null,
-  optimizedOrder: null,
-  currentView: null,
+  // Optimized order maps tracked strictly on a per-day key system ('all', 'unassigned', 1, 2, 3...)
+  optimizedOrders: {}, 
+  originalOrders: {},
+  routeGeometries: {}, // Stores actual drawn lines per day context
   poiLayers: [],
-  filterDay: 'all', // 'all' or 1..19
+  filterDay: 'all', // 'all', 'unassigned', or 1..19
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -533,7 +527,8 @@ function saveState() {
   const data = {
     stops: state.stops,
     notes: document.getElementById('notes-area').value,
-    poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson }))
+    poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
+    optimizedOrders: state.optimizedOrders
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
   setPill('● saved');
@@ -546,6 +541,7 @@ function loadState() {
     const data = JSON.parse(raw);
     if (data.stops) state.stops = data.stops.map(s => ({ alias:'', day: null, ...s }));
     if (data.notes) document.getElementById('notes-area').value = data.notes;
+    if (data.optimizedOrders) state.optimizedOrders = data.optimizedOrders;
     if (data.poiLayersMeta) {
       data.poiLayersMeta.forEach(meta => {
         if (meta.geojson) addPoiLayer(meta.name, meta.geojson, meta.color, meta.id, meta.visible);
@@ -559,12 +555,14 @@ function getExportData() {
     stops: state.stops,
     notes: document.getElementById('notes-area').value,
     poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
+    optimizedOrders: state.optimizedOrders
   };
 }
 
 function applyImportData(data) {
   if (data.stops) state.stops = data.stops.map(s => ({ alias:'', day: null, ...s }));
   if (data.notes) document.getElementById('notes-area').value = data.notes;
+  if (data.optimizedOrders) state.optimizedOrders = data.optimizedOrders;
   state.poiLayers.forEach(l => map.removeLayer(l.markers));
   state.poiLayers = [];
   if (data.poiLayersMeta) {
@@ -584,11 +582,7 @@ function setPill(msg) {
 }
 
 function focusOnStop(lat, lng) {
-  // map.flyTo([latitude, longitude], zoomLevel, options)
-  map.flyTo([lat, lng], 15, {
-    animate: true,
-    duration: 1.5 // seconds
-  });
+  map.flyTo([lat, lng], 15, { animate: true, duration: 1.5 });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -600,11 +594,7 @@ L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
   attribution: '© Google'
 }).addTo(map);
   
-//L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  //attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
-//}).addTo(map);
-
-let routeLayer = null;
+let routeLayerGroup = L.layerGroup().addTo(map);
 let markerLayer = L.layerGroup().addTo(map);
 
 // ═══════════════════════════════════════════════════════════════
@@ -624,6 +614,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 // ═══════════════════════════════════════════════════════════════
 function log(msg, type = '', target = 'log') {
   const el = document.getElementById(target);
+  if (!el) return;
   const d = document.createElement('div');
   d.className = 'log-e' + (type ? ' ' + type : '');
   d.textContent = '> ' + msg;
@@ -679,33 +670,24 @@ async function fetchSuggestions(q) {
 }
 
 async function getRouteDetails(stop1, stop2) {
-  // OSRM API expects coordinates in Longitude,Latitude format
   const url = `https://router.project-osrm.org/route/v1/driving/${stop1.lng},${stop1.lat};${stop2.lng},${stop2.lat}?overview=false`;
-  
   try {
     const response = await fetch(url);
     const data = await response.json();
-    
     if (data.routes && data.routes.length > 0) {
-      // Distance is returned in meters, convert to kilometers
       const distanceKm = (data.routes[0].distance / 1000).toFixed(1);
-      
-      // Duration is returned in seconds, convert to minutes/hours
       let durationMins = Math.round(data.routes[0].duration / 60);
       let durationText = `${durationMins} min`;
-      
       if (durationMins > 60) {
         const hours = Math.floor(durationMins / 60);
         const mins = durationMins % 60;
         durationText = `${hours}h ${mins}m`;
       }
-      
       return { distance: `${distanceKm} km`, duration: durationText };
     }
   } catch(error) {
     console.error("Routing calculation failed:", error);
   }
-  
   return { distance: "—", duration: "—" };
 }
 
@@ -726,9 +708,9 @@ map.on('click', async e => {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
     const data = await res.json();
     const name = data.name || data.address?.road || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    addStop({ name, alias: '', lat, lng, note: '', day: null });
+    addStop({ name, alias: '', lat, lng, note: '', day: state.filterDay === 'all' || state.filterDay === 'unassigned' ? null : state.filterDay });
   } catch {
-    addStop({ name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, alias: '', lat, lng, note: '', day: null });
+    addStop({ name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, alias: '', lat, lng, note: '', day: state.filterDay === 'all' || state.filterDay === 'unassigned' ? null : state.filterDay });
   }
 });
 
@@ -739,49 +721,56 @@ const COLORS = ['#3dffa0','#4d9fff','#a78bfa','#ff6b35','#f5c842','#ff9eee','#7b
 
 function addStop(stop) {
   state.stops.push(stop);
-  invalidateMatrix();
+  invalidateMatrix(state.filterDay);
   renderDayFilter();
   renderStopsList();
   refreshMarkers();
   updateButtons();
   log(`Added: ${stop.alias || stop.name}`, 'ok');
   saveState();
+  triggerAutoRouteDraw();
 }
 
 function removeStop(i) {
+  const targetDay = state.stops[i].day || 'unassigned';
   state.stops.splice(i, 1);
-  invalidateMatrix();
+  invalidateMatrix(targetDay);
   renderDayFilter();
   renderStopsList();
   refreshMarkers();
-  clearRoute();
   updateButtons();
   saveState();
+  triggerAutoRouteDraw();
 }
 
 function saveStopMeta(i) {
-  // reads alias, day, note from DOM
   const alias = document.getElementById(`alias-${i}`)?.value.trim() || '';
   const day = parseInt(document.getElementById(`day-select-${i}`)?.value) || null;
   const note = document.getElementById(`note-${i}`)?.value || '';
+  
+  const oldDay = state.stops[i].day || 'unassigned';
   state.stops[i].alias = alias;
   state.stops[i].day = isNaN(day) ? null : day;
   state.stops[i].note = note;
+  const newDay = state.stops[i].day || 'unassigned';
+  
+  invalidateMatrix(oldDay);
+  invalidateMatrix(newDay);
   saveState();
   renderDayFilter();
   renderStopsList();
+  refreshMarkers();
   toast('Stop saved');
+  triggerAutoRouteDraw();
 }
 
-function invalidateMatrix() {
-  state.distMatrix = null; state.durMatrix = null;
-  state.optimizedOrder = null; state.currentView = null;
+function invalidateMatrix(dayContext = 'all') {
+  delete state.optimizedOrders[dayContext];
+  delete state.originalOrders[dayContext];
+  delete state.routeGeometries[dayContext];
   resetStats();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// DISPLAY NAME helper
-// ═══════════════════════════════════════════════════════════════
 function displayName(s) {
   return s.alias ? s.alias : s.name;
 }
@@ -791,38 +780,44 @@ function displayName(s) {
 // ═══════════════════════════════════════════════════════════════
 function renderDayFilter() {
   const bar = document.getElementById('day-filter-bar');
-  // collect used days
   const usedDays = new Set(state.stops.map(s => s.day).filter(Boolean));
   bar.innerHTML = '<span class="sec-label">Day</span>';
 
+  // ALL button
   const allBtn = document.createElement('button');
   allBtn.className = 'day-btn all' + (state.filterDay === 'all' ? ' active' : '');
-  allBtn.dataset.day = 'all';
   allBtn.textContent = 'ALL';
   allBtn.addEventListener('click', () => setDayFilter('all'));
   bar.appendChild(allBtn);
 
-  // Show days 1-19 that have stops, plus a quick-add for assigning
-  const days = [];
+  // UNASSIGNED button
+  const unassignedBtn = document.createElement('button');
+  unassignedBtn.className = 'day-btn unassigned' + (state.filterDay === 'unassigned' ? ' active' : '');
+  unassignedBtn.textContent = 'UNASSIGNED';
+  unassignedBtn.addEventListener('click', () => setDayFilter('unassigned'));
+  bar.appendChild(unassignedBtn);
+
+  // Dynamic day tracks
   for (let d = 1; d <= TOTAL_DAYS; d++) {
-    if (usedDays.has(d)) days.push(d);
+    if (usedDays.has(d)) {
+      const btn = document.createElement('button');
+      btn.className = 'day-btn' + (state.filterDay === d ? ' active' : '');
+      btn.textContent = `D${d}`;
+      btn.addEventListener('click', () => setDayFilter(d));
+      bar.appendChild(btn);
+    }
   }
-  days.forEach(d => {
-    const btn = document.createElement('button');
-    btn.className = 'day-btn' + (state.filterDay === d ? ' active' : '');
-    btn.dataset.day = d;
-    btn.textContent = `D${d}`;
-    btn.addEventListener('click', () => setDayFilter(d));
-    bar.appendChild(btn);
-  });
 }
 
 function setDayFilter(day) {
   state.filterDay = day;
   renderDayFilter();
   renderStopsList();
+  refreshMarkers();
   updateDaySummary();
-  // refit map to filtered stops
+  updateButtons();
+  triggerAutoRouteDraw();
+  
   const filtered = getFilteredStops();
   if (filtered.length > 0) {
     const bounds = L.latLngBounds(filtered.map(s => [s.lat, s.lng]));
@@ -832,17 +827,16 @@ function setDayFilter(day) {
 
 function getFilteredStops() {
   if (state.filterDay === 'all') return state.stops;
+  if (state.filterDay === 'unassigned') return state.stops.filter(s => s.day === null);
   return state.stops.filter(s => s.day === state.filterDay);
 }
 
 function updateDaySummary() {
   const el = document.getElementById('day-summary');
-  if (state.filterDay === 'all') { el.classList.remove('show'); return; }
   const stops = getFilteredStops();
   el.classList.toggle('show', stops.length > 0);
   document.getElementById('ds-stops').textContent = stops.length;
 
-  // compute naive drive time using haversine distances at max speed
   let totalKm = 0;
   for (let i = 0; i < stops.length - 1; i++) {
     totalKm += haversineKm(stops[i], stops[i+1]);
@@ -852,9 +846,6 @@ function updateDaySummary() {
   document.getElementById('ds-dist').textContent = totalKm.toFixed(0) + ' km';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// HAVERSINE (for local estimates without OSRM)
-// ═══════════════════════════════════════════════════════════════
 function haversineKm(a, b) {
   const R = 6371;
   const dLat = (b.lat - a.lat) * Math.PI / 180;
@@ -886,7 +877,7 @@ function renderStopsList() {
     return;
   }
   if (!visibleStops.length) {
-    el.innerHTML = '<div class="empty-state">No stops assigned to this day yet.<br/>Expand a stop to assign it.</div>';
+    el.innerHTML = `<div class="empty-state">No stops assigned to ${state.filterDay === 'unassigned' ? 'unassigned section' : 'this day'} yet.<br/>Expand a stop to change assignments.</div>`;
     return;
   }
 
@@ -894,25 +885,29 @@ function renderStopsList() {
   const lockEnd   = document.getElementById('lock-end').checked;
   el.innerHTML = '';
 
-  // Get the full indices of visible stops
   const visibleIndices = allStops.map((s, i) => ({ s, i })).filter(({ s }) => {
     if (state.filterDay === 'all') return true;
+    if (state.filterDay === 'unassigned') return s.day === null;
     return s.day === state.filterDay;
   });
 
+  // Re-sort current visualization arrays if optimized versions exist for context view
+  const currentCtx = state.filterDay;
+  if (state.optimizedOrders[currentCtx]) {
+    const lookupOrder = state.optimizedOrders[currentCtx];
+    visibleIndices.sort((a, b) => lookupOrder.indexOf(a.i) - lookupOrder.indexOf(b.i));
+  }
+
   visibleIndices.forEach(({ s, i }, pos) => {
-    const isStart = lockStart && i === 0;
-    const isEnd   = lockEnd && i === allStops.length - 1;
+    const isStart = lockStart && pos === 0;
+    const isEnd   = lockEnd && pos === visibleIndices.length - 1;
     const div = document.createElement('div');
     div.className = 'stop-item';
     const color = COLORS[i % COLORS.length];
 
-    // Leg drive time from PREVIOUS stop
     let legHtml = '';
     if (pos > 0) {
       const prevStop = visibleIndices[pos - 1].s;
-      
-      // Use haversine math as a temporary loading state
       const km = haversineKm(prevStop, s);
       const hrs = km / MAX_SPEED_KMH;
       
@@ -921,7 +916,6 @@ function renderStopsList() {
         <span id="leg-dur-${i}">~${fmtHours(hrs)} drive <span style="font-size:9px;color:var(--muted)">(fetching real route...)</span></span>
       </div>`;
 
-      // Fetch actual OSRM data asynchronously and update the DOM
       getRouteDetails(prevStop, s).then(details => {
         const distEl = document.getElementById(`leg-dist-${i}`);
         const durEl = document.getElementById(`leg-dur-${i}`);
@@ -933,9 +927,8 @@ function renderStopsList() {
     }
 
     const dName = displayName(s);
-    const dayLabel = s.day ? `D${s.day}` : '';
+    const dayLabel = s.day ? `D${s.day}` : 'Unassigned';
 
-    // Build day options
     let dayOptions = '<option value="">— unassigned —</option>';
     for (let d = 1; d <= TOTAL_DAYS; d++) {
       dayOptions += `<option value="${d}" ${s.day === d ? 'selected' : ''}>Day ${d}</option>`;
@@ -943,10 +936,10 @@ function renderStopsList() {
 
     div.innerHTML = `
       ${legHtml}
-      <div class="stop-header" data-idx="${i}" onclick="focusOnStop(${s.lat}, ${s.lng})">
-        <div class="stop-num" style="background:${color};color:#000">${i+1}</div>
+      <div class="stop-header" data-idx="${i}">
+        <div class="stop-num" style="background:${color};color:#000">${pos+1}</div>
         <div class="stop-name-text">${s.alias ? `<span class="stop-name-alias">${s.alias}</span>` : dName}</div>
-        ${dayLabel ? `<span class="stop-badge day-tag">${dayLabel}</span>` : ''}
+        <span class="stop-badge day-tag">${dayLabel}</span>
         ${isStart ? '<span class="stop-badge start">START</span>' : ''}
         ${isEnd   ? '<span class="stop-badge end">END</span>'   : ''}
         ${s.note  ? '<span style="font-size:10px;color:var(--muted2)" title="Has note">✎</span>' : ''}
@@ -974,12 +967,14 @@ function renderStopsList() {
       </div>
     `;
 
-    div.querySelector('.stop-header').addEventListener('click', () => {
+    div.querySelector('.stop-header').addEventListener('click', (e) => {
+      if (e.target.closest('.stop-num') || e.target.closest('.stop-badge')) return;
       const body = document.getElementById(`stop-body-${i}`);
       const icon = div.querySelector('.stop-expand-icon');
       const open = body.classList.toggle('open');
       icon.textContent = open ? '▴' : '▾';
     });
+    div.querySelector('.stop-num').addEventListener('click', () => focusOnStop(s.lat, s.lng));
     div.querySelector('.stop-save').addEventListener('click', e => {
       e.stopPropagation();
       saveStopMeta(parseInt(e.target.dataset.idx));
@@ -995,10 +990,11 @@ function renderStopsList() {
 }
 
 function updateButtons() {
-  const n = state.stops.length;
-  document.getElementById('optimize-btn').disabled = n < 3;
-  document.getElementById('show-orig-btn').disabled = !state.durMatrix;
-  document.getElementById('show-opt-btn').disabled  = !state.optimizedOrder;
+  const visibleStops = getFilteredStops();
+  const currentCtx = state.filterDay;
+  document.getElementById('optimize-btn').disabled = visibleStops.length < 3;
+  document.getElementById('show-orig-btn').disabled = !state.originalOrders[currentCtx];
+  document.getElementById('show-opt-btn').disabled  = !state.optimizedOrders[currentCtx];
 }
 
 function resetStats() {
@@ -1020,52 +1016,97 @@ function makeIcon(num, color) {
 
 function refreshMarkers() {
   markerLayer.clearLayers();
-  state.stops.forEach((s, i) => {
-    const color = COLORS[i % COLORS.length];
-    L.marker([s.lat, s.lng], { icon: makeIcon(i+1, color) })
-      .bindPopup(popupHtml(s, i+1))
-      .addTo(markerLayer);
+  const visibleIndices = state.stops.map((s, i) => ({ s, i })).filter(({ s }) => {
+    if (state.filterDay === 'all') return true;
+    if (state.filterDay === 'unassigned') return s.day === null;
+    return s.day === state.filterDay;
   });
-  fitStops();
-}
 
-function renderOptimizedMarkers(order) {
-  markerLayer.clearLayers();
-  order.forEach((origIdx, newPos) => {
-    const s = state.stops[origIdx];
-    const color = COLORS[newPos % COLORS.length];
-    L.marker([s.lat, s.lng], { icon: makeIcon(newPos+1, color) })
-      .bindPopup(popupHtml(s, newPos+1, origIdx+1))
+  const currentCtx = state.filterDay;
+  if (state.optimizedOrders[currentCtx]) {
+    const lookupOrder = state.optimizedOrders[currentCtx];
+    visibleIndices.sort((a, b) => lookupOrder.indexOf(a.i) - lookupOrder.indexOf(b.i));
+  }
+
+  visibleIndices.forEach(({ s, i }, pos) => {
+    const color = COLORS[i % COLORS.length];
+    L.marker([s.lat, s.lng], { icon: makeIcon(pos + 1, color) })
+      .bindPopup(popupHtml(s, pos + 1, i + 1))
       .addTo(markerLayer);
   });
 }
 
 function popupHtml(s, num, origNum) {
   const name = displayName(s);
-  const dayStr = s.day ? `<div style="font-size:10px;color:var(--blue);margin-top:2px">Day ${s.day}</div>` : '';
+  const dayStr = s.day ? `<div style="font-size:10px;color:var(--blue);margin-top:2px">Day ${s.day}</div>` : '<div style="font-size:10px;color:var(--orange);margin-top:2px">Unassigned</div>';
   return `<div style="font-family:DM Mono,monospace;min-width:140px">
     <b style="font-size:12px">${num}. ${name}</b>
     ${s.alias ? `<div style="font-size:10px;color:#888;margin-top:1px">${s.name}</div>` : ''}
     ${dayStr}
-    ${origNum ? `<div style="font-size:10px;color:#888;margin-top:2px">Original stop #${origNum}</div>` : ''}
     ${s.note ? `<div style="font-size:11px;margin-top:6px;color:#aaa;line-height:1.4;white-space:pre-wrap">${s.note}</div>` : ''}
   </div>`;
 }
 
-function fitStops() {
-  if (state.stops.length > 0) {
-    const bounds = L.latLngBounds(state.stops.map(s => [s.lat, s.lng]));
-    map.fitBounds(bounds, { padding: [50,50] });
+function clearRoute() {
+  routeLayerGroup.clearLayers();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OSRM & ASYNC AUTO ROUTE RENDERING ENGINE
+// ═══════════════════════════════════════════════════════════════
+async function triggerAutoRouteDraw() {
+  clearRoute();
+  
+  if (state.filterDay === 'all') {
+    // Generate isolated route projections across all existing functional sets
+    for (let d = 1; d <= TOTAL_DAYS; d++) {
+      const dayStops = state.stops.filter(s => s.day === d);
+      if (dayStops.length >= 2) {
+        const color = DAY_ROUTE_COLORS[(d - 1) % DAY_ROUTE_COLORS.length];
+        // Render order priorities using optimized array cache fallbacks
+        let renderOrder = dayStops;
+        const dayCtx = d.toString();
+        if (state.optimizedOrders[dayCtx]) {
+          const lookup = state.optimizedOrders[dayCtx];
+          renderOrder = state.stops
+            .map((s, idx) => ({s, idx}))
+            .filter(item => item.s.day === d)
+            .sort((a,b) => lookup.indexOf(a.idx) - lookup.indexOf(b.idx))
+            .map(item => item.s);
+        }
+        await drawIsolatedRouteSegments(renderOrder, color, false);
+      }
+    }
+  } else {
+    // Isolated visual rendering target inside single filter scope configurations
+    const targetCtx = state.filterDay;
+    const activeStops = getFilteredStops();
+    if (activeStops.length >= 2) {
+      const traceColor = targetCtx === 'unassigned' ? '#ff6b35' : DAY_ROUTE_COLORS[(parseInt(targetCtx) - 1) % DAY_ROUTE_COLORS.length];
+      await drawIsolatedRouteSegments(activeStops, traceColor, false);
+    }
   }
 }
 
-function clearRoute() {
-  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+async function drawIsolatedRouteSegments(orderedStops, color, dashStyle = false) {
+  const coords = orderedStops.map(s => `${s.lng},${s.lat}`).join(';');
+  try {
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+    const data = await res.json();
+    if (data.code === 'Ok') {
+      const segmentLine = L.geoJSON(data.routes[0].geometry, {
+        style: {
+          color: color,
+          weight: 4,
+          opacity: 0.85,
+          dashArray: dashStyle ? '6, 6' : undefined
+        }
+      });
+      segmentLine.addTo(routeLayerGroup);
+    }
+  } catch(e) { console.error("Segment paint failure:", e); }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// OSRM
-// ═══════════════════════════════════════════════════════════════
 async function fetchDistanceMatrix(stops) {
   log('Fetching driving matrix from OSRM…', 'info');
   const coords = stops.map(s => `${s.lng},${s.lat}`).join(';');
@@ -1076,16 +1117,8 @@ async function fetchDistanceMatrix(stops) {
   return { dur: data.durations, dist: data.distances };
 }
 
-async function fetchRoute(orderedStops) {
-  const coords = orderedStops.map(s => `${s.lng},${s.lat}`).join(';');
-  const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
-  const data = await res.json();
-  if (data.code !== 'Ok') throw new Error('OSRM route failed');
-  return data.routes[0];
-}
-
 // ═══════════════════════════════════════════════════════════════
-// TSP
+// TSP ALGORITHMS
 // ═══════════════════════════════════════════════════════════════
 function nearestNeighbour(dur, n, startIdx, endIdx, lockStart, lockEnd) {
   const inner = [];
@@ -1137,30 +1170,46 @@ function fmtDur(s) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// OPTIMIZE
+// OPTIMIZE CURRENT SELECTION WORKER
 // ═══════════════════════════════════════════════════════════════
 document.getElementById('optimize-btn').addEventListener('click', async () => {
-  const n = state.stops.length;
+  const currentCtx = state.filterDay;
+  const targetSubStops = getFilteredStops();
+  const n = targetSubStops.length;
   if (n < 3) return;
+
   const btn = document.getElementById('optimize-btn');
   btn.disabled = true; btn.textContent = 'COMPUTING…';
+  
   try {
-    const { dur, dist } = await fetchDistanceMatrix(state.stops);
-    state.durMatrix = dur; state.distMatrix = dist;
+    const { dur, dist } = await fetchDistanceMatrix(targetSubStops);
     const lockStart = document.getElementById('lock-start').checked;
     const lockEnd   = document.getElementById('lock-end').checked;
-    const origOrder = state.stops.map((_,i) => i);
-    state.originalOrder = origOrder;
-    let opt = nearestNeighbour(dur, n, 0, n-1, lockStart, lockEnd);
-    opt = twoOpt(opt, dur, lockStart, lockEnd);
-    state.optimizedOrder = opt;
+    
+    // Create an array mapping back to original absolute array locations
+    const originalAbsoluteIndices = state.stops
+      .map((s, idx) => ({s, idx}))
+      .filter(item => {
+        if (currentCtx === 'all') return true;
+        if (currentCtx === 'unassigned') return item.s.day === null;
+        return item.s.day === currentCtx;
+      })
+      .map(item => item.idx);
 
-    const origSec  = routeCost(origOrder, dur);
-    const optSec   = routeCost(opt, dur);
-    const origDistM = routeCost(origOrder, dist);
-    const optDistM  = routeCost(opt, dist);
+    let localOptOrder = nearestNeighbour(dur, n, 0, n-1, lockStart, lockEnd);
+    localOptOrder = twoOpt(localOptOrder, dur, lockStart, lockEnd);
 
-    // Clamp to max speed: OSRM gives real routing times, but also show our estimate
+    // Map local route permutations back to globally unique absolute structural arrays
+    const absoluteOptimized = localOptOrder.map(localIdx => originalAbsoluteIndices[localIdx]);
+    
+    state.originalOrders[currentCtx] = originalAbsoluteIndices;
+    state.optimizedOrders[currentCtx] = absoluteOptimized;
+
+    const origSec  = routeCost(Array.from({length: n}, (_, i) => i), dur);
+    const optSec   = routeCost(localOptOrder, dur);
+    const origDistM = routeCost(Array.from({length: n}, (_, i) => i), dist);
+    const optDistM  = routeCost(localOptOrder, dist);
+
     const origKm = origDistM / 1000;
     const optKm  = optDistM / 1000;
     const origEstSec = (origKm / MAX_SPEED_KMH) * 3600;
@@ -1177,54 +1226,47 @@ document.getElementById('optimize-btn').addEventListener('click', async () => {
       document.getElementById('savings-val').textContent = `${savMin} min / ${savKm} km`;
       document.getElementById('savings-bar').style.display = 'block';
     }
-    log(`Optimized: ${fmtDur(origSec)} → ${fmtDur(optSec)} (OSRM routing)`, 'ok');
-    await drawRoute(opt, 'var(--accent)');
-    state.currentView = 'optimized';
-    renderOptimizedMarkers(opt);
+    
+    log(`Optimized day context view [${currentCtx}]: ${fmtDur(origSec)} → ${fmtDur(optSec)}`, 'ok');
+    
+    saveState();
+    renderStopsList();
+    refreshMarkers();
     updateButtons();
-    document.getElementById('show-orig-btn').disabled = false;
-    document.getElementById('show-opt-btn').disabled  = false;
+    triggerAutoRouteDraw();
     toast('Route optimized ✓');
   } catch(e) {
-    log('Error: ' + e.message, 'err');
+    log('Error optimization calculation: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'OPTIMIZE ROUTE';
+    btn.disabled = false; btn.textContent = 'OPTIMIZE CURRENT VIEW';
   }
 });
 
-async function drawRoute(order, color) {
-  clearRoute();
-  const stops = order.map(i => state.stops[i]);
-  try {
-    const route = await fetchRoute(stops);
-    routeLayer = L.geoJSON(route.geometry, { style: { color: '#3dffa0', weight: 3.5, opacity: 0.8 } }).addTo(map);
-    if (color === 'original') routeLayer.setStyle({ color: '#f5c842', dashArray: '6 4' });
-    map.fitBounds(routeLayer.getBounds(), { padding: [40,40] });
-  } catch(e) { log('Route draw error: ' + e.message, 'err'); }
-}
-
 document.getElementById('show-orig-btn').addEventListener('click', async () => {
-  if (state.currentView === 'original') return;
-  refreshMarkers();
-  await drawRoute(state.originalOrder, 'original');
-  state.currentView = 'original';
-  log('Showing original order', 'info');
+  const currentCtx = state.filterDay;
+  if (!state.originalOrders[currentCtx]) return;
+  const subsetStops = state.originalOrders[currentCtx].map(idx => state.stops[idx]);
+  clearRoute();
+  await drawIsolatedRouteSegments(subsetStops, '#f5c842', true);
+  log('Showing original sequence pass', 'info');
 });
 
 document.getElementById('show-opt-btn').addEventListener('click', async () => {
-  if (state.currentView === 'optimized') return;
-  renderOptimizedMarkers(state.optimizedOrder);
-  await drawRoute(state.optimizedOrder, 'optimized');
-  state.currentView = 'optimized';
-  log('Showing optimized order', 'info');
+  triggerAutoRouteDraw();
+  log('Restored optimized visibility settings', 'info');
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   if (!confirm('Clear all stops? This cannot be undone.')) return;
-  state.stops = []; invalidateMatrix();
-  clearRoute(); markerLayer.clearLayers();
+  state.stops = []; 
+  state.optimizedOrders = {};
+  state.originalOrders = {};
+  state.routeGeometries = {};
+  clearRoute(); 
+  markerLayer.clearLayers();
   renderDayFilter();
-  renderStopsList(); updateButtons();
+  renderStopsList(); 
+  updateButtons();
   document.getElementById('log').innerHTML = '';
   saveState();
   log('All stops cleared', 'info');
@@ -1239,11 +1281,11 @@ document.getElementById('lock-end').addEventListener('change', renderStopsList);
 
 function cloudStatus(msg, cls) {
   const el = document.getElementById('cloud-status');
+  if (!el) return;
   el.textContent = msg;
   el.className = 'cloud-status' + (cls ? ' ' + cls : '');
 }
 
-// Helper to fetch the secure URL from Vercel's backend
 async function fetchSecureUrl() {
   try {
     const res = await fetch('/api/config');
@@ -1258,11 +1300,9 @@ async function fetchSecureUrl() {
 // PUSH
 document.getElementById('cloud-push-btn').addEventListener('click', async () => {
   cloudStatus('Preparing sync...', 'busy');
-  
   try {
-    const url = await fetchSecureUrl(); // Get the URL from Vercel Env
+    const url = await fetchSecureUrl(); 
     cloudStatus('Syncing to Drive…', 'busy');
-    
     const payload = getExportData();
     const response = await fetch(url, {
       method: "POST",
@@ -1270,7 +1310,6 @@ document.getElementById('cloud-push-btn').addEventListener('click', async () => 
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     });
-
     const result = await response.json();
     if (result.status === "success") {
       cloudStatus('Pushed ✓ ' + new Date().toLocaleTimeString(), 'ok');
@@ -1287,24 +1326,19 @@ document.getElementById('cloud-push-btn').addEventListener('click', async () => 
 // PULL
 document.getElementById('cloud-pull-btn').addEventListener('click', async () => {
   if (!confirm('Pull from Drive? This will overwrite your current local stops and notes.')) return;
-  
   cloudStatus('Preparing pull...', 'busy');
-  
   try {
-    const url = await fetchSecureUrl(); // Get the URL from Vercel Env
+    const url = await fetchSecureUrl(); 
     cloudStatus('Pulling from Drive…', 'busy');
-    
     const response = await fetch(url, { method: "GET", mode: "cors" });
     const data = await response.json();
-    
     if (data.status === "error") throw new Error(data.message);
-    
     const payloadData = data.data || data; 
     applyImportData(payloadData);
     saveState();
-    
     cloudStatus('Pulled ✓ ' + new Date().toLocaleTimeString(), 'ok');
     toast('Pulled from Drive ✓');
+    triggerAutoRouteDraw();
   } catch(e) {
     cloudStatus('Pull error: ' + e.message, 'err');
     toast("Pull failed.");
@@ -1335,6 +1369,7 @@ document.getElementById('import-json-input').addEventListener('change', async e 
     saveState();
     toast('Imported ✓');
     log('Imported from file', 'ok', 'log-cloud');
+    triggerAutoRouteDraw();
   } catch(err) {
     toast('Import failed: invalid JSON');
   }
@@ -1520,6 +1555,7 @@ renderStopsList();
 refreshMarkers();
 renderPoiLayersList();
 updateButtons();
+triggerAutoRouteDraw();
 log('Session restored. Ready.', 'info');
 </script>
 </body>
