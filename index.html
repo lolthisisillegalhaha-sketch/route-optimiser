@@ -583,6 +583,14 @@ function setPill(msg) {
   document.getElementById('save-pill').textContent = msg;
 }
 
+function focusOnStop(lat, lng) {
+  // map.flyTo([latitude, longitude], zoomLevel, options)
+  map.flyTo([lat, lng], 15, {
+    animate: true,
+    duration: 1.5 // seconds
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // MAP
 // ═══════════════════════════════════════════════════════════════
@@ -668,6 +676,37 @@ async function fetchSuggestions(q) {
       suggestionsEl.appendChild(div);
     });
   } catch(e) { log('Geocoding error', 'err'); }
+}
+
+async function getRouteDetails(stop1, stop2) {
+  // OSRM API expects coordinates in Longitude,Latitude format
+  const url = `https://router.project-osrm.org/route/v1/driving/${stop1.lng},${stop1.lat};${stop2.lng},${stop2.lat}?overview=false`;
+  
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.routes && data.routes.length > 0) {
+      // Distance is returned in meters, convert to kilometers
+      const distanceKm = (data.routes[0].distance / 1000).toFixed(1);
+      
+      // Duration is returned in seconds, convert to minutes/hours
+      let durationMins = Math.round(data.routes[0].duration / 60);
+      let durationText = `${durationMins} min`;
+      
+      if (durationMins > 60) {
+        const hours = Math.floor(durationMins / 60);
+        const mins = durationMins % 60;
+        durationText = `${hours}h ${mins}m`;
+      }
+      
+      return { distance: `${distanceKm} km`, duration: durationText };
+    }
+  } catch(error) {
+    console.error("Routing calculation failed:", error);
+  }
+  
+  return { distance: "—", duration: "—" };
 }
 
 document.getElementById('add-btn').addEventListener('click', () => {
@@ -868,16 +907,29 @@ function renderStopsList() {
     div.className = 'stop-item';
     const color = COLORS[i % COLORS.length];
 
-    // Leg drive time (haversine estimate) from PREVIOUS stop in the same filtered list
+    // Leg drive time from PREVIOUS stop
     let legHtml = '';
     if (pos > 0) {
       const prevStop = visibleIndices[pos - 1].s;
+      
+      // Use haversine math as a temporary loading state
       const km = haversineKm(prevStop, s);
       const hrs = km / MAX_SPEED_KMH;
+      
       legHtml = `<div class="leg-info show" id="leg-${i}">
-        <span>▲ ${km.toFixed(0)} km</span>
-        <span>~${fmtHours(hrs)} drive <span style="font-size:9px;color:var(--muted)">(est. @${MAX_SPEED_KMH}km/h)</span></span>
+        <span id="leg-dist-${i}">▲ ${km.toFixed(0)} km</span>
+        <span id="leg-dur-${i}">~${fmtHours(hrs)} drive <span style="font-size:9px;color:var(--muted)">(fetching real route...)</span></span>
       </div>`;
+
+      // Fetch actual OSRM data asynchronously and update the DOM
+      getRouteDetails(prevStop, s).then(details => {
+        const distEl = document.getElementById(`leg-dist-${i}`);
+        const durEl = document.getElementById(`leg-dur-${i}`);
+        if (distEl && durEl && details.distance !== "—") {
+          distEl.innerHTML = `▲ ${details.distance}`;
+          durEl.innerHTML = `🚗 ${details.duration}`;
+        }
+      });
     }
 
     const dName = displayName(s);
@@ -890,7 +942,7 @@ function renderStopsList() {
     }
 
     div.innerHTML = `
-      <div class="stop-header" data-idx="${i}">
+      <div class="stop-header" data-idx="${i}" onclick="focusOnStop(${s.lat}, ${s.lng})">
         <div class="stop-num" style="background:${color};color:#000">${i+1}</div>
         <div class="stop-name-text">${s.alias ? `<span class="stop-name-alias">${s.alias}</span>` : dName}</div>
         ${dayLabel ? `<span class="stop-badge day-tag">${dayLabel}</span>` : ''}
