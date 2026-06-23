@@ -752,7 +752,8 @@ function getExportData() {
     stops: state.stops,
     notes: document.getElementById('notes-area').value,
     poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
-    optimizedOrders: state.optimizedOrders
+    optimizedOrders: state.optimizedOrders,
+    originalOrders: state.originalOrders // ADD THIS LINE
   };
 }
 
@@ -760,6 +761,8 @@ function applyImportData(data) {
   if (data.stops) state.stops = data.stops.map(s => ({ alias:'', day: null, ...s }));
   if (data.notes) document.getElementById('notes-area').value = data.notes;
   if (data.optimizedOrders) state.optimizedOrders = data.optimizedOrders;
+  if (data.originalOrders) state.originalOrders = data.originalOrders; // ADD THIS LINE
+  
   state.poiLayers.forEach(l => map.removeLayer(l.markers));
   state.poiLayers = [];
   if (data.poiLayersMeta) {
@@ -767,11 +770,13 @@ function applyImportData(data) {
       if (meta.geojson) addPoiLayer(meta.name, meta.geojson, meta.color, meta.id, meta.visible);
     });
   }
+  
   invalidateMatrix();
   renderStopsList();
   refreshMarkers();
   updateButtons();
   renderDayFilter();
+  renderDayFilterResponsive(); // ADD THIS LINE (Fixes Issue 2 below)
   renderBookings();
 }
 
@@ -1737,6 +1742,9 @@ document.getElementById('cloud-pull-btn').addEventListener('click', async () => 
     cloudStatus('Pulled ✓ ' + new Date().toLocaleTimeString(), 'ok');
     toast('Pulled from Drive ✓');
     triggerAutoRouteDraw();
+    
+    // Auto-redirect to Stops tab on mobile/desktop after loading cloud data
+    document.querySelector('.tab[data-tab="stops"]').click();
   } catch(e) {
     cloudStatus('Pull error: ' + e.message, 'err');
     toast("Pull failed.");
@@ -1768,6 +1776,9 @@ document.getElementById('import-json-input').addEventListener('change', async e 
     toast('Imported ✓');
     log('Imported from file', 'ok', 'log-cloud');
     triggerAutoRouteDraw();
+
+    // Auto-redirect to Stops tab on mobile/desktop after loading JSON file
+    document.querySelector('.tab[data-tab="stops"]').click();
   } catch(err) {
     toast('Import failed: invalid JSON');
   }
