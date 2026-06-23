@@ -64,6 +64,7 @@
       background: none; border: 1px solid transparent; color: var(--muted2);
       cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase;
       transition: color .15s, border-color .15s;
+      flex-shrink: 0; /* Prevents tabs from shrinking and breaking mobile scroll */
     }
     .tab:hover { color: var(--text); }
     .tab.active { color: var(--accent); border-color: var(--border2); background: var(--panel2); }
@@ -157,13 +158,12 @@
     .day-summary strong { color: var(--accent); }
 
     /* ── Stops list ── */
-    .stops-list { flex: 1; overflow-y: auto; }
+    
     .stops-list { 
       flex: 1; 
       overflow-y: auto; 
       overflow-x: hidden; 
-      padding-right: 4px; /* Prevents text from hitting the scrollbar */
-      max-height: calc(100vh - 360px); /* Strictly binds the height to the screen size */
+      padding-right: 4px; /* Prevents text from hitting the scrollbar */      
     }
 
     /* Optional: Clean minimalist scrollbars for the stops list */
@@ -397,15 +397,22 @@
         <div style="position:relative">
           <div class="row">
             <input id="search-input" class="input" placeholder="Search place or address…" autocomplete="off" style="flex:1" />
-            <select id="tile-select" class="input" style="width: auto; padding: 7px 4px; font-size: 11px; cursor: pointer; border-color: var(--border2); background: var(--panel2);">
-              <option value="y">🛰️ Sat</option>
-              <option value="m">🗺️ Map</option>
-              <option value="p">⛰️ Terr</option>
-            </select>
             <button class="btn" id="add-btn">ADD</button>
           </div>
           <div id="suggestions"></div>
         </div>
+        
+        <div class="row" style="margin-top: 8px; align-items: center;">
+          <span style="font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px;">Map Layer:</span>
+          <select id="tile-select" class="input" style="flex: 1; padding: 6px 8px; font-size: 11px; cursor: pointer; border-color: var(--border2); background: var(--panel2);">
+            <option value="googleHybrid">🛰️ Google Hybrid</option>
+            <option value="googleSat">📷 Google Satellite (No Labels)</option>
+            <option value="googleMaps">🗺️ Google Maps (Streets)</option>
+            <option value="osm">🌐 OpenStreetMap</option>
+            <option value="topo">⛰️ OSM Topo</option>
+          </select>
+        </div>
+
         <div class="row" style="margin-top:8px; flex-wrap:wrap; gap:12px;">
           <label class="check-label"><input type="checkbox" id="lock-start" /> Lock first as start</label>
           <label class="check-label"><input type="checkbox" id="lock-end" /> Lock last as end</label>
@@ -433,41 +440,47 @@
         </div>
       </div>
 
-      <div style="border-top:1px solid var(--border)">
-        <div class="stats-grid">
-          <div class="stat-cell">
-            <div class="stat-lbl">Original</div>
-            <div class="stat-val dim" id="orig-time">—</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-lbl">Optimized</div>
-            <div class="stat-val green" id="opt-time">—</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-lbl">Orig km</div>
-            <div class="stat-val dim" id="orig-dist">—</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-lbl">Opt km</div>
-            <div class="stat-val green" id="opt-dist">—</div>
-          </div>
+      <div style="border-top:1px solid var(--border); display: flex; flex-direction: column;" id="opt-section-container">
+        <div id="toggle-opt-btn" style="padding: 8px 16px; background: var(--panel2); border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--muted2); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; user-select: none;">
+          <span>Optimisation & Logs</span>
+          <span id="toggle-opt-icon">▼</span>
         </div>
-        <div class="savings-row" id="savings-bar">Saves <strong id="savings-val"></strong></div>
-      </div>
+        
+        <div id="opt-section-content" style="display: flex; flex-direction: column;">
+          <div class="stats-grid">
+            <div class="stat-cell">
+              <div class="stat-lbl">Original</div>
+              <div class="stat-val dim" id="orig-time">—</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-lbl">Optimized</div>
+              <div class="stat-val green" id="opt-time">—</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-lbl">Orig km</div>
+              <div class="stat-val dim" id="orig-dist">—</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-lbl">Opt km</div>
+              <div class="stat-val green" id="opt-dist">—</div>
+            </div>
+          </div>
+          <div class="savings-row" id="savings-bar">Saves <strong id="savings-val"></strong></div>
 
-      <div class="ctrl-sec">
-        <div class="row">
-          <button class="btn" id="optimize-btn" style="flex:1" disabled>OPTIMIZE CURRENT VIEW</button>
-          <button class="btn-ghost" id="reset-btn">CLEAR ALL</button>
-        </div>
-        <div class="row">
-          <button class="btn-ghost" id="show-orig-btn" style="flex:1; font-size:10px" disabled>SHOW ORIGINAL</button>
-          <button class="btn-ghost" id="show-opt-btn" style="flex:1; font-size:10px" disabled>SHOW OPTIMIZED</button>
+          <div class="ctrl-sec">
+            <div class="row">
+              <button class="btn" id="optimize-btn" style="flex:1" disabled>OPTIMIZE CURRENT VIEW</button>
+              <button class="btn-ghost" id="reset-btn">CLEAR ALL</button>
+            </div>
+            <div class="row">
+              <button class="btn-ghost" id="show-orig-btn" style="flex:1; font-size:10px" disabled>SHOW ORIGINAL</button>
+              <button class="btn-ghost" id="show-opt-btn" style="flex:1; font-size:10px" disabled>SHOW OPTIMIZED</button>
+            </div>
+          </div>
+
+          <div class="log" id="log"></div>
         </div>
       </div>
-
-      <div class="log" id="log"></div>
-    </div>
 
     <div class="panel" id="panel-poi">
       <div class="poi-section">
@@ -647,7 +660,7 @@ const baseMaps = {
   "OpenStreetMap": osm,
   "OSM Topo": topo
 };
-L.control.layers(baseMaps).addTo(map);
+//L.control.layers(baseMaps).addTo(map);
 
 let routeLayerGroup = L.layerGroup().addTo(map);
 let markerLayer = L.layerGroup().addTo(map);
@@ -734,6 +747,19 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
     if(tab.dataset.tab === 'bookings') renderBookings();
   });
+});
+const toggleOptBtn = document.getElementById('toggle-opt-btn');
+const optSectionContent = document.getElementById('opt-section-content');
+const toggleOptIcon = document.getElementById('toggle-opt-icon');
+
+toggleOptBtn.addEventListener('click', () => {
+  if (optSectionContent.style.display === 'none') {
+    optSectionContent.style.display = 'flex';
+    toggleOptIcon.textContent = '▼';
+  } else {
+    optSectionContent.style.display = 'none';
+    toggleOptIcon.textContent = '▲';
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════
