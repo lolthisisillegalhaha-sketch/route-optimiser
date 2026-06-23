@@ -1,0 +1,6 @@
+{
+  "name": "routeopt",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NZ campervan route optimiser with Google Drive sync via Apps Script."
+}

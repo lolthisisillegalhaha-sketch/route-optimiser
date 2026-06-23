@@ -180,6 +180,21 @@
     .check-label { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted2); cursor: pointer; }
     .check-label input { accent-color: var(--accent); cursor: pointer; }
 
+    /* ── Cloud sync ── */
+    .cloud-sec { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    .cloud-row { display: flex; gap: 5px; align-items: center; margin-bottom: 6px; }
+    .cloud-input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border2);
+      color: var(--text); font-family: var(--font-mono); font-size: 11px;
+      padding: 5px 8px; outline: none; transition: border-color .15s;
+    }
+    .cloud-input:focus { border-color: var(--blue); }
+    .cloud-input::placeholder { color: var(--muted); font-style: italic; }
+    .cloud-status { font-size: 10px; color: var(--muted2); }
+    .cloud-status.ok { color: var(--accent); }
+    .cloud-status.err { color: var(--orange); }
+    .cloud-status.busy { color: var(--blue); }
+
     /* ── POI Panel ── */
     .poi-section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
     .poi-upload-area {
@@ -254,7 +269,7 @@
       .logo { font-size: 12px; }
       .topbar-divider { display: none; }
       .tab-bar { margin-left: 0; gap: 0; }
-      .tab { padding: 5px 8px; font-size: 10px; }
+      .tab { padding: 5px 6px; font-size: 9px; }
       .save-pill { display: none; }
       #status-bar { max-width: 90px; font-size: 9px; }
 
@@ -308,6 +323,7 @@
       <button class="tab active" data-tab="stops">Stops</button>
       <button class="tab" data-tab="poi">Layers</button>
       <button class="tab" data-tab="notes">Notes</button>
+      <button class="tab" data-tab="cloud">☁ Sync</button>
     </nav>
     <div class="topbar-spacer"></div>
     <span class="save-pill" id="save-pill">● saved</span>
@@ -428,6 +444,38 @@
       </div>
     </div>
 
+    <!-- ══ CLOUD SYNC PANEL ══ -->
+    <div class="panel" id="panel-cloud">
+      <div class="sec">
+        <div class="sec-label">☁ Google Drive Sync</div>
+        <div style="font-size:11px; color:var(--muted2); line-height:1.7; margin-bottom:10px;">
+          Sync your route across any device. Data is saved to a file in your connected Google Drive via a private backend — the sync link itself is never exposed in this page's code.
+        </div>
+      </div>
+
+      <div class="sec" style="flex:1">
+        <div class="sec-label">Sync Actions</div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+          <button class="btn" id="cloud-push-btn" style="width:100%">↑ PUSH — Save to Drive</button>
+          <button class="btn-ghost" id="cloud-pull-btn" style="width:100%">↓ PULL — Load from Drive</button>
+          <div class="cloud-status" id="cloud-status">Ready to sync.</div>
+        </div>
+
+        <div style="margin-top:18px; padding-top:12px; border-top:1px solid var(--border);">
+          <div class="sec-label">Export / Import (offline backup)</div>
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <button class="btn-ghost" id="export-json-btn" style="flex:1; font-size:10px">EXPORT .JSON</button>
+            <label class="btn-ghost" style="flex:1; font-size:10px; text-align:center; cursor:pointer; padding:7px 10px;">
+              IMPORT .JSON
+              <input type="file" id="import-json-input" accept=".json" style="display:none" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="log" id="log-cloud" style="border-top:1px solid var(--border)"></div>
+    </div>
+
   </aside>
 
   <!-- Map -->
@@ -480,6 +528,30 @@ function loadState() {
       });
     }
   } catch(e) { log('Could not restore saved session', 'err'); }
+}
+
+function getExportData() {
+  return {
+    stops: state.stops,
+    notes: document.getElementById('notes-area').value,
+    poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
+  };
+}
+
+function applyImportData(data) {
+  if (data.stops) state.stops = data.stops;
+  if (data.notes) document.getElementById('notes-area').value = data.notes;
+  state.poiLayers.forEach(l => map.removeLayer(l.markers));
+  state.poiLayers = [];
+  if (data.poiLayersMeta) {
+    data.poiLayersMeta.forEach(meta => {
+      if (meta.geojson) addPoiLayer(meta.name, meta.geojson, meta.color, meta.id, meta.visible);
+    });
+  }
+  invalidateMatrix();
+  renderStopsList();
+  refreshMarkers();
+  updateButtons();
 }
 
 function setPill(msg) {
@@ -1209,6 +1281,121 @@ function scheduleStopsSave() {
   setPill('● unsaved');
   stopsAutoSaveTimer = setTimeout(saveState, 600);
 }
+
+// ═══════════════════════════════════════════════════════════════
+// CLOUD SYNC — Google Drive via Apps Script & Vercel API
+// ═══════════════════════════════════════════════════════════════
+
+function cloudStatus(msg, cls) {
+  const el = document.getElementById('cloud-status');
+  el.textContent = msg;
+  el.className = 'cloud-status' + (cls ? ' ' + cls : '');
+}
+
+async function fetchSecureUrl() {
+  try {
+    const res = await fetch('/api/config');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (!data.scriptUrl) throw new Error('Sync isn\'t configured yet — set SCRIPT_URL in Vercel.');
+    return data.scriptUrl;
+  } catch (error) {
+    throw new Error("Could not load backend config: " + error.message);
+  }
+}
+
+// PUSH
+document.getElementById('cloud-push-btn').addEventListener('click', async () => {
+  cloudStatus('Preparing sync...', 'busy');
+
+  try {
+    const url = await fetchSecureUrl();
+
+    cloudStatus('Syncing to Drive…', 'busy');
+
+    const payload = getExportData();
+    const response = await fetch(url, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    if (result.status === "success") {
+      cloudStatus('Pushed ✓ ' + new Date().toLocaleTimeString(), 'ok');
+      toast("Sync complete! Saved to Drive.");
+      log('Pushed to Drive', 'ok', 'log-cloud');
+    } else {
+      throw new Error(result.message || "Drive save failed");
+    }
+  } catch (error) {
+    cloudStatus('Push error: ' + error.message, 'err');
+    toast("Sync failed.");
+    log('Push failed: ' + error.message, 'err', 'log-cloud');
+  }
+});
+
+// PULL
+document.getElementById('cloud-pull-btn').addEventListener('click', async () => {
+  if (!confirm('Pull from Drive? This will overwrite your current local stops and notes.')) return;
+
+  cloudStatus('Preparing pull...', 'busy');
+
+  try {
+    const url = await fetchSecureUrl();
+    cloudStatus('Pulling from Drive…', 'busy');
+
+    const response = await fetch(url, { method: "GET", mode: "cors" });
+    const data = await response.json();
+
+    if (data.status === "error") throw new Error(data.message);
+
+    const payloadData = data.data || data;
+
+    applyImportData(payloadData);
+    saveState();
+
+    cloudStatus('Pulled ✓ ' + new Date().toLocaleTimeString(), 'ok');
+    toast('Pulled from Drive ✓');
+    log('Pulled from Drive', 'ok', 'log-cloud');
+  } catch(e) {
+    cloudStatus('Pull error: ' + e.message, 'err');
+    toast("Pull failed.");
+    log('Pull failed: ' + e.message, 'err', 'log-cloud');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT / IMPORT JSON (offline backup)
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('export-json-btn').addEventListener('click', () => {
+  const data = getExportData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `routeopt-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast('Backup exported');
+});
+
+document.getElementById('import-json-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('Import this file? Your current stops and notes will be replaced.')) { e.target.value = ''; return; }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    applyImportData(data);
+    saveState();
+    toast('Imported ✓');
+    log('Imported from file', 'ok', 'log-cloud');
+  } catch(err) {
+    toast('Import failed: invalid JSON');
+    log('Import failed: ' + err.message, 'err', 'log-cloud');
+  }
+  e.target.value = '';
+});
 
 // ═══════════════════════════════════════════════════════════════
 // INIT
