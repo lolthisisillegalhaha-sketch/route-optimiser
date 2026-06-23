@@ -53,6 +53,32 @@
     align-items: center;
     gap: 12px;
     }
+    /* Active panel mobile enforcement styling properties */
+    .panel {
+      display: none !important;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .panel.active {
+      display: flex !important;
+      flex-direction: column !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Ensure child fields, textarea notes and forms scale reliably inside their panels */
+    #panel-layers, #panel-bookings, #panel-notes, #panel-sync {
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    #notes-area {
+      flex: 1;
+      min-height: 250px; /* Assures input textbox field displays safely on smaller viewport devices */
+      width: 100%;
+      resize: none;
+    }
 
     .logo { font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--accent); letter-spacing: 0.05em; }
     .logo-sub { font-size: 10px; color: var(--muted2); letter-spacing: 0.1em; text-transform: uppercase; }
@@ -86,8 +112,6 @@
       z-index: 5;
     }
 
-    .panel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
-    .panel.active { display: flex; }
 
     .sec { border-bottom: 1px solid var(--border); padding: 12px 16px; }
     .sec-label {
@@ -355,14 +379,54 @@
       html, body { position: fixed; overflow: hidden; width: 100%; }
       .app { 
         grid-template-columns: 100vw; 
-        grid-template-rows: auto 40vh 1fr; 
+        grid-template-rows: auto 35vh 1fr; /* Adjusted map height for more workspace */
         height: 100dvh; 
         overflow-x: hidden; 
       }
-      .topbar { padding: 8px 12px; flex-wrap: wrap; height: auto; gap: 8px; }
-      .tab-bar { flex: 1 1 100%; overflow-x: auto; white-space: nowrap; padding-bottom: 4px; }
+      .topbar { 
+        padding: 8px 12px; 
+        height: auto; 
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px; 
+      }
+      
+      /* Constrain the parent wrapper to the viewport width */
+      .topbar > div:first-child { 
+        display: flex; 
+        align-items: center; 
+        width: 100%; 
+        overflow: hidden; 
+        gap: 8px; 
+      }
+      
+      /* Allow tabs to scroll horizontally smoothly without shrinking */
+      .tab-bar { 
+        flex: 1; 
+        display: flex;
+        gap: 4px;
+        overflow-x: auto !important; 
+        white-space: nowrap; 
+        -webkit-overflow-scrolling: touch; 
+        padding-bottom: 2px;
+      }
+      .tab {
+        flex-shrink: 0 !important;
+        padding: 6px 10px !important;
+      }
+      
       #map { grid-row: 2; height: 100%; z-index: 1; }
-      .sidebar { grid-row: 3; border-right: none; border-top: 1px solid var(--border); }
+      .sidebar { 
+        grid-row: 3; 
+        border-right: none; 
+        border-top: 1px solid var(--border); 
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
     }
   </style>
 </head>
@@ -390,83 +454,66 @@
 
   <aside class="sidebar">
 
-    <div class="panel active" id="panel-stops">
+    <div class="panel active" id="panel-stops" style="display: flex; flex-direction: column; height: 100%;">
+      
+      <div id="toggle-input-header" style="padding: 6px 12px; background: var(--panel2); border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--accent); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">
+        <span>Stops Controller</span>
+        <span id="toggle-input-icon">▲ Collapse</span>
+      </div>
 
-      <div class="sec">
-        <div class="sec-label">Add Stop</div>
+      <div id="input-controls-section" class="sec" style="padding: 10px; border-bottom: 1px solid var(--border); margin-bottom: 0; flex-shrink: 0;">
         <div style="position:relative">
-          <div class="row">
-            <input id="search-input" class="input" placeholder="Search place or address…" autocomplete="off" style="flex:1" />
-            <button class="btn" id="add-btn">ADD</button>
+          <div style="display: flex; gap: 6px; align-items: center; width: 100%;">
+            <input id="search-input" class="input" placeholder="Search address…" autocomplete="off" style="flex: 2; min-width: 0; padding: 6px 8px; font-size: 12px;" />
+            <select id="tile-select" class="input" style="flex: 1.2; min-width: 0; padding: 6px 4px; font-size: 11px; border-color: var(--border2); background: var(--panel2); cursor: pointer;">
+              <option value="googleHybrid">🛰️ Hybrid</option>
+              <option value="googleSat">📷 Sat Only</option>
+              <option value="googleMaps">🗺️ Street Map</option>
+              <option value="osm">🌐 OSM</option>
+              <option value="topo">⛰️ Topo</option>
+            </select>
+            <button class="btn" id="add-btn" style="flex: 0.6; padding: 6px 10px; font-size: 11px;">ADD</button>
           </div>
           <div id="suggestions"></div>
         </div>
         
-        <div class="row" style="margin-top: 8px; align-items: center;">
-          <span style="font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px;">Map Layer:</span>
-          <select id="tile-select" class="input" style="flex: 1; padding: 6px 8px; font-size: 11px; cursor: pointer; border-color: var(--border2); background: var(--panel2);">
-            <option value="googleHybrid">🛰️ Google Hybrid</option>
-            <option value="googleSat">📷 Google Satellite (No Labels)</option>
-            <option value="googleMaps">🗺️ Google Maps (Streets)</option>
-            <option value="osm">🌐 OpenStreetMap</option>
-            <option value="topo">⛰️ OSM Topo</option>
-          </select>
+        <div class="row" style="margin-top: 8px; flex-wrap: wrap; gap: 10px; font-size: 11px;">
+          <label class="check-label"><input type="checkbox" id="lock-start" /> Lock start</label>
+          <label class="check-label"><input type="checkbox" id="lock-end" /> Lock end</label>
         </div>
 
-        <div class="row" style="margin-top:8px; flex-wrap:wrap; gap:12px;">
-          <label class="check-label"><input type="checkbox" id="lock-start" /> Lock first as start</label>
-          <label class="check-label"><input type="checkbox" id="lock-end" /> Lock last as end</label>
-        </div>
+        <div id="day-filter-container" style="margin-top: 8px;"></div>
       </div>
 
-      <div class="day-filter-bar" id="day-filter-bar">
-        <span class="sec-label">Day</span>
-        <button class="day-btn all active" data-day="all">ALL</button>
-        <button class="day-btn unassigned" data-day="unassigned">UNASSIGNED</button>
-      </div>
-
-      <div class="day-summary" id="day-summary">
+      <div class="day-filter-bar" id="day-filter-bar" style="flex-shrink: 0;"></div>
+      <div class="day-summary" id="day-summary" style="flex-shrink: 0;">
         <span>Stops: <strong id="ds-stops">0</strong></span>
         <span>Drive: <strong id="ds-drive">—</strong></span>
         <span>Distance: <strong id="ds-dist">—</strong></span>
       </div>
 
-      <div class="sec" style="padding:8px 0; flex:1; overflow:hidden; display:flex; flex-direction:column; min-height:0;">
+      <div class="sec" style="padding:8px 0; flex:1; overflow:hidden; display:flex; flex-direction:column; min-height:0; border-bottom: none;">
         <div class="sec-label" style="padding:0 16px; margin-bottom:4px;">
           Waypoints <span id="stop-count" style="color:var(--accent)">0</span>
         </div>
-        <div class="stops-list" id="stops-list">
+        <div class="stops-list" id="stops-list" style="flex: 1; overflow-y: auto; padding-right: 4px;">
           <div class="empty-state">No waypoints yet.<br/>Search above or click the map to pin a stop.</div>
         </div>
       </div>
 
-      <div style="border-top:1px solid var(--border); display: flex; flex-direction: column;" id="opt-section-container">
+      <div style="border-top:1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0;" id="opt-section-container">
         <div id="toggle-opt-btn" style="padding: 8px 16px; background: var(--panel2); border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--muted2); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; user-select: none;">
           <span>Optimisation & Logs</span>
           <span id="toggle-opt-icon">▼</span>
         </div>
-        
         <div id="opt-section-content" style="display: flex; flex-direction: column;">
           <div class="stats-grid">
-            <div class="stat-cell">
-              <div class="stat-lbl">Original</div>
-              <div class="stat-val dim" id="orig-time">—</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-lbl">Optimized</div>
-              <div class="stat-val green" id="opt-time">—</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-lbl">Orig km</div>
-              <div class="stat-val dim" id="orig-dist">—</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-lbl">Opt km</div>
-              <div class="stat-val green" id="opt-dist">—</div>
-            </div>
+            <div class="stat-cell"><div class="stat-lbl">Original</div><div class="stat-val dim" id="orig-time">—</div></div>
+            <div class="stat-cell"><div class="stat-lbl">Optimized</div><div class="stat-val green" id="opt-time">—</div></div>
+            <div class="stat-cell"><div class="stat-lbl">Orig km</div><div class="stat-val dim" id="orig-dist">—</div></div>
+            <div class="stat-cell"><div class="stat-lbl">Opt km</div><div class="stat-val green" id="opt-dist">—</div></div>
           </div>
           <div class="savings-row" id="savings-bar">Saves <strong id="savings-val"></strong></div>
-
           <div class="ctrl-sec">
             <div class="row">
               <button class="btn" id="optimize-btn" style="flex:1" disabled>OPTIMIZE CURRENT VIEW</button>
@@ -477,10 +524,10 @@
               <button class="btn-ghost" id="show-opt-btn" style="flex:1; font-size:10px" disabled>SHOW OPTIMIZED</button>
             </div>
           </div>
-
           <div class="log" id="log"></div>
         </div>
       </div>
+    </div>
 
     <div class="panel" id="panel-poi">
       <div class="poi-section">
@@ -1900,6 +1947,78 @@ document.getElementById('notes-export-btn').addEventListener('click', () => {
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
+// Toggle Collapse/Expand for the input entry panel
+const toggleInputHeader = document.getElementById('toggle-input-header');
+const inputControlsSection = document.getElementById('input-controls-section');
+const toggleInputIcon = document.getElementById('toggle-input-icon');
+
+toggleInputHeader.addEventListener('click', () => {
+  if (inputControlsSection.style.display === 'none') {
+    inputControlsSection.style.display = 'block';
+    toggleInputIcon.textContent = '▲ Collapse';
+  } else {
+    inputControlsSection.style.display = 'none';
+    toggleInputIcon.textContent = '▼ Expand Entry';
+  }
+});
+
+// Responsive Day Filter: Converts horizontal pills into an elegant dropdown select row on mobile viewports
+function renderDayFilterResponsive() {
+  const container = document.getElementById('day-filter-container');
+  const desktopBar = document.getElementById('day-filter-bar');
+  if (!container || !desktopBar) return;
+  
+  container.innerHTML = '';
+
+  if (window.innerWidth <= 720) {
+    desktopBar.style.display = 'none'; // Hide standard pills on mobile
+
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex'; wrapper.style.alignItems = 'center';
+    wrapper.style.gap = '8px'; wrapper.style.width = '100%';
+
+    const label = document.createElement('span');
+    label.style.fontSize = '10px'; label.style.color = 'var(--muted2)';
+    label.style.textTransform = 'uppercase'; label.innerText = 'Viewing:';
+
+    const select = document.createElement('select');
+    select.className = 'input'; select.style.flex = '1'; select.style.padding = '5px';
+    select.style.fontSize = '11px'; select.style.background = 'var(--panel2)';
+
+    const optAll = document.createElement('option');
+    optAll.value = 'all'; optAll.innerText = '🗓️ All Days Overview';
+    if (state.filterDay === 'all') optAll.selected = true;
+    select.appendChild(optAll);
+
+    const optUn = document.createElement('option');
+    optUn.value = 'unassigned'; optUn.innerText = '⚠️ Unassigned Stops';
+    if (state.filterDay === 'unassigned') optUn.selected = true;
+    select.appendChild(optUn);
+
+    for (let i = 1; i <= TOTAL_DAYS; i++) {
+      const opt = document.createElement('option');
+      opt.value = i; opt.innerText = `Day ${i}`;
+      if (state.filterDay === i) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', (e) => {
+      const val = e.target.value;
+      setDayFilter(val === 'all' || val === 'unassigned' ? val : parseInt(val, 10));
+    });
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(select);
+    container.appendChild(wrapper);
+  } else {
+    desktopBar.style.display = 'flex'; // Show standard pills on desktop
+  }
+}
+
+// Attach responsive adjustments to the window execution listeners
+window.addEventListener('resize', renderDayFilterResponsive);
+window.addEventListener('DOMContentLoaded', renderDayFilterResponsive);
+
 loadState();
 renderDayFilter();
 renderStopsList();
