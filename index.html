@@ -47,6 +47,13 @@
       border-bottom: 1px solid var(--border);
       z-index: 10;
     }
+
+    .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    }
+
     .logo { font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--accent); letter-spacing: 0.05em; }
     .logo-sub { font-size: 10px; color: var(--muted2); letter-spacing: 0.1em; text-transform: uppercase; }
     .topbar-divider { width: 1px; height: 20px; background: var(--border2); }
@@ -151,6 +158,28 @@
 
     /* ── Stops list ── */
     .stops-list { flex: 1; overflow-y: auto; }
+    .stops-list { 
+      flex: 1; 
+      overflow-y: auto; 
+      overflow-x: hidden; 
+      padding-right: 4px; /* Prevents text from hitting the scrollbar */
+      max-height: calc(100vh - 360px); /* Strictly binds the height to the screen size */
+    }
+
+    /* Optional: Clean minimalist scrollbars for the stops list */
+    .stops-list::-webkit-scrollbar {
+      width: 5px;
+    }
+    .stops-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .stops-list::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 4px;
+    }
+    .stops-list::-webkit-scrollbar-thumb:hover {
+      background: var(--muted2);
+    }
     .stop-item {
       border-bottom: 1px solid var(--border);
       transition: background .1s;
@@ -341,20 +370,22 @@
 <div class="app">
 
   <header class="topbar">
-    <div>
+    <div style="display: flex; align-items: center; gap: 14px;">
       <div class="logo">ROUTEOPT</div>
+      <div class="topbar-divider"></div>
+      <nav class="tab-bar">
+        <button class="tab active" data-tab="stops">Stops</button>
+        <button class="tab" data-tab="poi">Layers</button>
+        <button class="tab" data-tab="bookings">Bookings</button>
+        <button class="tab" data-tab="notes">Notes</button>
+        <button class="tab" data-tab="cloud">☁ Sync</button>
+      </nav>
     </div>
-    <div class="topbar-divider"></div>
-    <nav class="tab-bar">
-      <button class="tab active" data-tab="stops">Stops</button>
-      <button class="tab" data-tab="poi">Layers</button>
-      <button class="tab" data-tab="bookings">Bookings</button>
-      <button class="tab" data-tab="notes">Notes</button>
-      <button class="tab" data-tab="cloud">☁ Sync</button>
-    </nav>
-    <div class="topbar-spacer"></div>
-    <span class="save-pill" id="save-pill">● saved</span>
-    <span id="status-bar">ready</span>
+    
+    <div class="header-meta">
+      <span id="status-bar">ready</span>
+      <span class="save-pill" id="save-pill">● saved</span>
+    </div>
   </header>
 
   <aside class="sidebar">
