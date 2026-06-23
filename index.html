@@ -224,10 +224,10 @@
     .day-select:focus { border-color: var(--accent); }
 
     /* ── Stats ── */
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
-    .stat-cell { background: var(--bg); padding: 10px 14px; }
-    .stat-lbl { font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
-    .stat-val { font-size: 17px; font-weight: 400; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); }
+    .stat-cell { background: var(--bg); padding: 5px 4px; text-align: center; }
+    .stat-lbl { font-size: 8px; color: var(--muted); letter-spacing: 0.02em; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; }
+    .stat-val { font-size: 13px; font-weight: 400; white-space: nowrap; }
     .stat-val.green { color: var(--accent); }
     .stat-val.dim   { color: var(--muted2); }
     .savings-row { padding: 7px 14px; font-size: 11px; color: var(--muted2); display: none; border-bottom: 1px solid var(--border); }
@@ -366,6 +366,11 @@
         <div style="position:relative">
           <div class="row">
             <input id="search-input" class="input" placeholder="Search place or address…" autocomplete="off" style="flex:1" />
+            <select id="tile-select" class="input" style="width: auto; padding: 7px 4px; font-size: 11px; cursor: pointer; border-color: var(--border2); background: var(--panel2);">
+              <option value="y">🛰️ Sat</option>
+              <option value="m">🗺️ Map</option>
+              <option value="p">⛰️ Terr</option>
+            </select>
             <button class="btn" id="add-btn">ADD</button>
           </div>
           <div id="suggestions"></div>
@@ -593,6 +598,16 @@ const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
 const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '© OpenTopoMap' });
 
 const map = L.map('map', { zoomControl: true, layers: [googleHybrid] }).setView([-43.8, 170.5], 6);
+
+// Map switcher lookup configuration
+const layersLookup = { googleHybrid, googleSat, googleMaps, osm, topo };
+let currentTileLayer = googleHybrid;
+
+document.getElementById('tile-select').addEventListener('change', function(e) {
+  map.removeLayer(currentTileLayer);
+  currentTileLayer = layersLookup[e.target.value];
+  map.addLayer(currentTileLayer);
+});
 
 const baseMaps = {
   "Google Hybrid": googleHybrid,
