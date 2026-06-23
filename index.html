@@ -379,10 +379,11 @@
       html, body { position: fixed; overflow: hidden; width: 100%; }
       .app { 
         grid-template-columns: 100vw; 
-        grid-template-rows: auto 35vh 1fr; /* Adjusted map height for more workspace */
+        grid-template-rows: auto 35vh 1fr; 
         height: 100dvh; 
         overflow-x: hidden; 
       }
+      
       .topbar { 
         padding: 8px 12px; 
         height: auto; 
@@ -393,16 +394,19 @@
         gap: 8px; 
       }
       
-      /* Constrain the parent wrapper to the viewport width */
+      /* 1. Add min-width: 0 to the logo wrapper so it can shrink */
       .topbar > div:first-child { 
         display: flex; 
         align-items: center; 
-        width: 100%; 
-        overflow: hidden; 
+        flex: 1; 
+        min-width: 0; 
         gap: 8px; 
       }
       
-      /* Allow tabs to scroll horizontally smoothly without shrinking */
+      /* Hide the vertical divider on mobile to give your tabs more breathing room */
+      .topbar-divider { display: none; }
+      
+      /* 2. Add min-width: 0 here to trigger the horizontal scroll */
       .tab-bar { 
         flex: 1; 
         display: flex;
@@ -410,14 +414,25 @@
         overflow-x: auto !important; 
         white-space: nowrap; 
         -webkit-overflow-scrolling: touch; 
+        min-width: 0; 
         padding-bottom: 2px;
       }
+      
       .tab {
         flex-shrink: 0 !important;
         padding: 6px 10px !important;
       }
+
+      /* 3. Protect the right-side controls from getting crushed into a hamburger */
+      .topbar .top-controls {
+        flex-shrink: 0;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
       
       #map { grid-row: 2; height: 100%; z-index: 1; }
+      
       .sidebar { 
         grid-row: 3; 
         border-right: none; 
