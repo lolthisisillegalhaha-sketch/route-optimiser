@@ -383,7 +383,16 @@
         height: 100dvh; 
         overflow-x: hidden; 
       }
+      /* Hide desktop tabs & dividers on mobile */
+      .tab-bar { display: none !important; }
+      .topbar-divider { display: none !important; }
       
+      /* Show the dropdown chevron */
+      #mobile-tab-chevron { display: inline-block !important; }
+      
+      /* Dropdown styling */
+      .mobile-dropdown-item:hover { background: var(--border); color: var(--accent) !important; }
+      .mobile-dropdown-item.active { background: var(--border); color: var(--accent) !important; font-weight: bold; }
       .topbar { 
         padding: 8px 12px; 
         height: auto; 
@@ -449,9 +458,23 @@
 <div class="app">
 
   <header class="topbar">
-    <div style="display: flex; align-items: center; gap: 14px;">
-      <div class="logo">ROUTEOPT</div>
+    <div style="display: flex; align-items: center; gap: 14px; position: relative;">
+      
+      <div id="mobile-logo-trigger" style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+        <div class="logo">ROUTEOPT</div>
+        <span id="mobile-tab-chevron" style="display: none; font-size: 10px; color: var(--accent); transition: transform 0.2s;">▼</span>
+      </div>
+
+      <div id="mobile-tabs-dropdown" style="display: none; position: absolute; top: 100%; left: 0; background: var(--panel2); border: 1px solid var(--border2); border-radius: 4px; margin-top: 15px; z-index: 9999; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
+        <div class="mobile-dropdown-item active" data-target="stops" style="padding: 12px 16px; font-size: 12px; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text);">📍 Stops</div>
+        <div class="mobile-dropdown-item" data-target="poi" style="padding: 12px 16px; font-size: 12px; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text);">🗺️ Layers</div>
+        <div class="mobile-dropdown-item" data-target="bookings" style="padding: 12px 16px; font-size: 12px; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text);">📅 Bookings</div>
+        <div class="mobile-dropdown-item" data-target="notes" style="padding: 12px 16px; font-size: 12px; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text);">📝 Notes</div>
+        <div class="mobile-dropdown-item" data-target="cloud" style="padding: 12px 16px; font-size: 12px; cursor: pointer; color: var(--text);">☁ Sync</div>
+      </div>
+      
       <div class="topbar-divider"></div>
+      
       <nav class="tab-bar">
         <button class="tab active" data-tab="stops">Stops</button>
         <button class="tab" data-tab="poi">Layers</button>
@@ -1968,6 +1991,60 @@ document.getElementById('notes-export-btn').addEventListener('click', () => {
   a.download = 'trip-notes.txt';
   a.click();
   toast('Notes exported');
+});
+
+// ═══════════════════════════════════════════════════════════════
+// MOBILE TAB DROPDOWN CONTROLLER
+// ═══════════════════════════════════════════════════════════════
+const mobileLogoTrigger = document.getElementById('mobile-logo-trigger');
+const mobileTabsDropdown = document.getElementById('mobile-tabs-dropdown');
+const mobileChevron = document.getElementById('mobile-tab-chevron');
+
+// 1. Open/Close dropdown on logo click
+mobileLogoTrigger.addEventListener('click', (e) => {
+  if (window.innerWidth > 720) return; // Do nothing on desktop
+  e.stopPropagation();
+  const isOpen = mobileTabsDropdown.style.display === 'block';
+  mobileTabsDropdown.style.display = isOpen ? 'none' : 'block';
+  mobileChevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+});
+
+// 2. Close dropdown if clicking elsewhere
+document.addEventListener('click', () => {
+  if(mobileTabsDropdown) {
+    mobileTabsDropdown.style.display = 'none';
+    if(mobileChevron) mobileChevron.style.transform = 'rotate(0deg)';
+  }
+});
+
+// 3. Connect Dropdown items to your Desktop Tabs
+document.querySelectorAll('.mobile-dropdown-item').forEach(item => {
+  item.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const targetTabName = this.getAttribute('data-target');
+    
+    // Click the hidden desktop tab
+    const nativeTabElement = document.querySelector(`.tab[data-tab="${targetTabName}"]`);
+    if (nativeTabElement) nativeTabElement.click();
+    
+    // Close dropdown
+    mobileTabsDropdown.style.display = 'none';
+    mobileChevron.style.transform = 'rotate(0deg)';
+  });
+});
+
+// 4. Keep highlighting in sync (Add this to your existing TABS logic if you prefer, or leave it here)
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const activeTabName = tab.getAttribute('data-tab');
+    document.querySelectorAll('.mobile-dropdown-item').forEach(item => {
+      if (item.getAttribute('data-target') === activeTabName) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════
