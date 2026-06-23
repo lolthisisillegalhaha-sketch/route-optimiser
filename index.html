@@ -49,9 +49,9 @@
     }
 
     .header-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     /* Active panel mobile enforcement styling properties */
     .panel {
@@ -111,7 +111,6 @@
       overflow: hidden;
       z-index: 5;
     }
-
 
     .sec { border-bottom: 1px solid var(--border); padding: 12px 16px; }
     .sec-label {
@@ -375,6 +374,8 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+    #mobile-map-toggle { display: none; } /* Hidden by default on desktop */
+
     @media (max-width: 720px) {
       html, body { position: fixed; overflow: hidden; width: 100%; }
       .app { 
@@ -383,6 +384,27 @@
         height: 100dvh; 
         overflow-x: hidden; 
       }
+      /* Expand map to fullscreen when toggled */
+      body.map-expanded .app {
+        grid-template-rows: auto 1fr 0 !important;
+      }
+      body.map-expanded .sidebar {
+        display: none !important;
+      }
+
+      /* Show the toggle button */
+      #mobile-map-toggle {
+        display: inline-block;
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 3px 6px;
+        font-size: 10px;
+        cursor: pointer;
+        font-family: var(--font-mono);
+      }
+
       /* Hide desktop tabs & dividers on mobile */
       .tab-bar { display: none !important; }
       .topbar-divider { display: none !important; }
@@ -487,6 +509,7 @@
     <div class="header-meta">
       <span id="status-bar">ready</span>
       <span class="save-pill" id="save-pill">● saved</span>
+      <button id="mobile-map-toggle">🗺️ MAP</button>
     </div>
   </header>
 
@@ -626,11 +649,11 @@
           </tbody>
         </table>
       </div>
-      <div class="sec" style="background: var(--panel2); flex-shrink: 0; border-top: 1px solid var(--border);">
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-family: var(--font-display); letter-spacing: 0.05em;">
-          <span>TOTAL COST:</span>
-          <span id="bk-total-cost" style="color: var(--accent);">$0.00</span>
+      <div class="sec" style="background: var(--panel2); flex-shrink: 0; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <div id="bk-total-cost" style="font-weight: bold; font-family: var(--font-display); letter-spacing: 0.05em;">
+          <span style="color:#a78bfa; margin-right:6px">AUD $0.00</span> <span style="color:var(--accent);">SGD $0.00</span>
         </div>
+        <button class="btn-ghost" id="bk-export-csv-btn" style="font-size:10px; padding: 4px 8px;">EXPORT CSV</button>
       </div>
     </div>
 
@@ -791,7 +814,7 @@ function getExportData() {
     notes: document.getElementById('notes-area').value,
     poiLayersMeta: state.poiLayers.map(l => ({ id: l.id, name: l.name, color: l.color, visible: l.visible, geojson: l.geojson })),
     optimizedOrders: state.optimizedOrders,
-    originalOrders: state.originalOrders // ADD THIS LINE
+    originalOrders: state.originalOrders 
   };
 }
 
@@ -799,7 +822,7 @@ function applyImportData(data) {
   if (data.stops) state.stops = data.stops.map(s => ({ alias:'', day: null, ...s }));
   if (data.notes) document.getElementById('notes-area').value = data.notes;
   if (data.optimizedOrders) state.optimizedOrders = data.optimizedOrders;
-  if (data.originalOrders) state.originalOrders = data.originalOrders; // ADD THIS LINE
+  if (data.originalOrders) state.originalOrders = data.originalOrders; 
   
   state.poiLayers.forEach(l => map.removeLayer(l.markers));
   state.poiLayers = [];
@@ -814,7 +837,7 @@ function applyImportData(data) {
   refreshMarkers();
   updateButtons();
   renderDayFilter();
-  renderDayFilterResponsive(); // ADD THIS LINE (Fixes Issue 2 below)
+  renderDayFilterResponsive(); 
   renderBookings();
 }
 
@@ -827,7 +850,7 @@ function focusOnStop(lat, lng) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TABS
+// TABS & MOBILE MAP TOGGLE
 // ═══════════════════════════════════════════════════════════════
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -838,6 +861,14 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'bookings') renderBookings();
   });
 });
+
+document.getElementById('mobile-map-toggle').addEventListener('click', (e) => {
+  const expanded = document.body.classList.toggle('map-expanded');
+  e.target.textContent = expanded ? '📄 LIST' : '🗺️ MAP';
+  // Give CSS transition time to complete before invalidating map size
+  setTimeout(() => map.invalidateSize(), 150);
+});
+
 const toggleOptBtn = document.getElementById('toggle-opt-btn');
 const optSectionContent = document.getElementById('opt-section-content');
 const toggleOptIcon = document.getElementById('toggle-opt-icon');
@@ -996,6 +1027,7 @@ function saveStopMeta(i) {
   const bCheck = document.getElementById(`b-check-${i}`)?.checked || false;
   const bType = document.getElementById(`b-type-${i}`)?.value || 'Campsite';
   const bPaid = document.getElementById(`b-paid-${i}`)?.value || 'NH';
+  const bCurrency = document.getElementById(`b-currency-${i}`)?.value || 'AUD';
   const bCost = parseFloat(document.getElementById(`b-cost-${i}`)?.value) || 0;
   const bUrl = document.getElementById(`b-url-${i}`)?.value || '';
 
@@ -1003,7 +1035,7 @@ function saveStopMeta(i) {
   state.stops[i].alias = alias;
   state.stops[i].day = isNaN(day) ? null : day;
   state.stops[i].note = note;
-  state.stops[i].booking = { needsBooking: bCheck, type: bType, paidBy: bPaid, cost: bCost, url: bUrl };
+  state.stops[i].booking = { needsBooking: bCheck, type: bType, paidBy: bPaid, cost: bCost, currency: bCurrency, url: bUrl };
   
   const newDay = state.stops[i].day || 'unassigned';
   
@@ -1256,7 +1288,11 @@ function renderStopsList() {
               </select>
             </div>
             <div class="row">
-              <input type="number" id="b-cost-${i}" class="input" placeholder="Cost ($)" value="${b.cost || ''}" style="flex:1" step="0.01" />
+              <select id="b-currency-${i}" class="input" style="flex:0.6; padding: 5px;">
+                <option value="AUD" ${(b.currency || 'AUD') === 'AUD' ? 'selected' : ''}>AUD</option>
+                <option value="SGD" ${b.currency === 'SGD' ? 'selected' : ''}>SGD</option>
+              </select>
+              <input type="number" id="b-cost-${i}" class="input" placeholder="Cost" value="${b.cost || ''}" style="flex:1" step="0.01" />
               <input type="text" id="b-url-${i}" class="input" placeholder="Website URL" value="${b.url || ''}" style="flex:2" />
             </div>
           </div>
@@ -1430,7 +1466,8 @@ function renderBookings() {
     daySelect.appendChild(optU);
   }
 
-  let total = 0;
+  let totalAUD = 0;
+  let totalSGD = 0;
   let rowsHtml = '';
 
   state.stops.forEach(s => {
@@ -1444,7 +1481,10 @@ function renderBookings() {
 
     if (matchDay && matchType && matchPaid) {
       const cost = parseFloat(s.booking.cost) || 0;
-      total += cost;
+      const currency = s.booking.currency || 'AUD';
+      
+      if (currency === 'AUD') totalAUD += cost;
+      if (currency === 'SGD') totalSGD += cost;
       
       const nameHtml = s.booking.url
         ? `<a href="${s.booking.url.startsWith('http') ? s.booking.url : 'https://'+s.booking.url}" target="_blank">${displayName(s)}</a>`
@@ -1458,18 +1498,49 @@ function renderBookings() {
           </td>
           <td style="color:var(--muted);">${s.booking.type}</td>
           <td>${s.booking.paidBy}</td>
-          <td style="text-align: right; color:var(--text);">$${cost.toFixed(2)}</td>
+          <td style="text-align: right; color:var(--text);">${currency} $${cost.toFixed(2)}</td>
         </tr>
       `;
     }
   });
 
   tbody.innerHTML = rowsHtml || '<tr><td colspan="4" class="empty-state">No matching bookings found.</td></tr>';
-  document.getElementById('bk-total-cost').textContent = `$${total.toFixed(2)}`;
+  document.getElementById('bk-total-cost').innerHTML = `<span style="color:#a78bfa; margin-right:6px">AUD $${totalAUD.toFixed(2)}</span> <span style="color:var(--accent);">SGD $${totalSGD.toFixed(2)}</span>`;
 }
 
 ['bk-filter-day', 'bk-filter-type', 'bk-filter-paid'].forEach(id => {
   document.getElementById(id).addEventListener('change', renderBookings);
+});
+
+// CSV EXPORT FOR BOOKINGS
+document.getElementById('bk-export-csv-btn').addEventListener('click', () => {
+  let csv = "Day,Item,Type,Paid By,Currency,Cost\n";
+  const dayFilter = document.getElementById('bk-filter-day').value;
+  const typeFilter = document.getElementById('bk-filter-type').value;
+  const paidFilter = document.getElementById('bk-filter-paid').value;
+
+  state.stops.forEach(s => {
+    if (!s.booking?.needsBooking) return;
+    const matchDay = dayFilter === 'all' || (dayFilter === 'unassigned' && s.day === null) || (s.day === parseInt(dayFilter));
+    const matchType = typeFilter === 'all' || s.booking.type === typeFilter;
+    const matchPaid = paidFilter === 'all' || s.booking.paidBy === paidFilter;
+
+    if (matchDay && matchType && matchPaid) {
+      const dayStr = s.day ? `Day ${s.day}` : 'Unassigned';
+      const name = `"${displayName(s).replace(/"/g, '""')}"`;
+      const cur = s.booking.currency || 'AUD';
+      const cost = parseFloat(s.booking.cost) || 0;
+      csv += `${dayStr},${name},${s.booking.type},${s.booking.paidBy},${cur},${cost.toFixed(2)}\n`;
+    }
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `bookings_export_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast("Bookings exported to CSV");
 });
 
 // ═══════════════════════════════════════════════════════════════
