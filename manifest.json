@@ -1,0 +1,8 @@
+{
+  "name": "ROUTEOPT Trip Planner",
+  "short_name": "ROUTEOPT",
+  "display": "standalone",
+  "start_url": ".",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10"
+}
