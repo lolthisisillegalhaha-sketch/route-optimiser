@@ -269,7 +269,30 @@
 
       .ctrl-sec .row { flex-wrap: nowrap; }
       .btn, .btn-ghost { font-size: 10px; padding: 7px 8px; }
+
+      .basemap-ctrl select { max-width: 150px; font-size: 10px; padding: 6px 4px; }
     }
+    /* ── Basemap switcher control ── */
+    .basemap-ctrl {
+      background: var(--panel);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .basemap-ctrl select {
+      background: var(--panel);
+      color: var(--text);
+      border: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .basemap-ctrl select:focus { outline: 1px solid var(--accent); }
   </style>
 </head>
 <body>
@@ -467,9 +490,96 @@ function setPill(msg) {
 // MAP
 // ═══════════════════════════════════════════════════════════════
 const map = L.map('map', { zoomControl: true }).setView([-43.8, 170.5], 6);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
-}).addTo(map);
+
+// Basemap registry — swap interchangeably via the control added below.
+// Google layers (gSatellite/gHybrid/gNormal/gTerrain) use an unofficial,
+// undocumented Google endpoint — not the Google Maps Platform API — used
+// here by explicit choice. Google's terms prohibit pulling tiles this way
+// outside Google's own products, and access can be throttled or blocked
+// without notice at any time. If that happens, just switch to one of the
+// other entries below (all official/no-key sources) from the dropdown —
+// no code change needed.
+const TILE_LAYERS = {
+  gHybrid: {
+    label: 'Google · Satellite + labels',
+    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    options: { attribution: '© Google', subdomains: ['mt0','mt1','mt2','mt3'], maxZoom: 20 }
+  },
+  gSatellite: {
+    label: 'Google · Satellite (no labels)',
+    url: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    options: { attribution: '© Google', subdomains: ['mt0','mt1','mt2','mt3'], maxZoom: 20 }
+  },
+  gNormal: {
+    label: 'Google · Normal roadmap',
+    url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    options: { attribution: '© Google', subdomains: ['mt0','mt1','mt2','mt3'], maxZoom: 20 }
+  },
+  gTerrain: {
+    label: 'Google · Terrain',
+    url: 'https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+    options: { attribution: '© Google', subdomains: ['mt0','mt1','mt2','mt3'], maxZoom: 20 }
+  },
+  carto: {
+    label: 'CARTO · Dark (official, no key)',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    options: { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19 }
+  },
+  osm: {
+    label: 'OpenStreetMap · Standard',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: { attribution: '© OpenStreetMap contributors', maxZoom: 19 }
+  },
+  topo: {
+    label: 'OpenTopoMap · Topographic',
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    options: { attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)', subdomains: 'abc', maxZoom: 17 }
+  },
+  esriSat: {
+    label: 'Esri · World Imagery (satellite)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    options: { attribution: '© Esri, Maxar, Earthstar Geographics', maxZoom: 19 }
+  }
+};
+
+const BASEMAP_STORAGE_KEY = 'routeopt_basemap';
+let activeTileLayer = null;
+
+function setBasemap(key) {
+  const def = TILE_LAYERS[key] || TILE_LAYERS.gHybrid;
+  if (activeTileLayer) map.removeLayer(activeTileLayer);
+  activeTileLayer = L.tileLayer(def.url, def.options).addTo(map);
+  try { localStorage.setItem(BASEMAP_STORAGE_KEY, key); } catch(e) {}
+}
+
+// Floating basemap-switcher control (top-right, alongside zoom controls).
+const BasemapControl = L.Control.extend({
+  options: { position: 'topright' },
+  onAdd: function() {
+    const container = L.DomUtil.create('div', 'basemap-ctrl leaflet-bar');
+    const select = L.DomUtil.create('select', '', container);
+    Object.entries(TILE_LAYERS).forEach(([key, def]) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = def.label;
+      select.appendChild(opt);
+    });
+    select.value = savedBasemapKey();
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.on(select, 'change', () => setBasemap(select.value));
+    return container;
+  }
+});
+map.addControl(new BasemapControl());
+
+function savedBasemapKey() {
+  try {
+    const saved = localStorage.getItem(BASEMAP_STORAGE_KEY);
+    return (saved && TILE_LAYERS[saved]) ? saved : 'gHybrid';
+  } catch(e) { return 'gHybrid'; }
+}
+
+setBasemap(savedBasemapKey());
 
 let routeLayer = null;
 let markerLayer = L.layerGroup().addTo(map);
