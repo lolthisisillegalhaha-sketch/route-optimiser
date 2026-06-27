@@ -724,6 +724,7 @@
 // ═══════════════════════════════════════════════════════════════
 const TOTAL_DAYS = 19;
 const MAX_SPEED_KMH = 60; // assumed max driving speed
+const routeCache = {}; // cache of real OSRM route data: key "lat,lng->lat,lng" => { distanceKm, durationSec }
 
 // Dedicated colors for up to 19 days to distinguish paths on "ALL" view
 const DAY_ROUTE_COLORS = [
@@ -952,25 +953,38 @@ async function fetchSuggestions(q) {
 }
 
 async function getRouteDetails(stop1, stop2) {
+  const cacheKey = `${stop1.lat},${stop1.lng}->${stop2.lat},${stop2.lng}`;
+  // Return cached result immediately if available
+  if (routeCache[cacheKey]) {
+    const { distanceKm, durationSec } = routeCache[cacheKey];
+    return formatRouteDetails(distanceKm, durationSec);
+  }
   const url = `https://router.project-osrm.org/route/v1/driving/${stop1.lng},${stop1.lat};${stop2.lng},${stop2.lat}?overview=false`;
   try {
     const response = await fetch(url);
     const data = await response.json();
     if (data.routes && data.routes.length > 0) {
-      const distanceKm = (data.routes[0].distance / 1000).toFixed(1);
-      let durationMins = Math.round(data.routes[0].duration / 60);
-      let durationText = `${durationMins} min`;
-      if (durationMins > 60) {
-        const hours = Math.floor(durationMins / 60);
-        const mins = durationMins % 60;
-        durationText = `${hours}h ${mins}m`;
-      }
-      return { distance: `${distanceKm} km`, duration: durationText };
+      const distanceKm = data.routes[0].distance / 1000;
+      const durationSec = data.routes[0].duration;
+      // Store raw numeric data in cache for summary aggregation
+      routeCache[cacheKey] = { distanceKm, durationSec };
+      return formatRouteDetails(distanceKm, durationSec);
     }
   } catch(error) {
     console.error("Routing calculation failed:", error);
   }
   return { distance: "—", duration: "—" };
+}
+
+function formatRouteDetails(distanceKm, durationSec) {
+  let durationMins = Math.round(durationSec / 60);
+  let durationText = `${durationMins} min`;
+  if (durationMins > 60) {
+    const hours = Math.floor(durationMins / 60);
+    const mins = durationMins % 60;
+    durationText = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  return { distance: `${distanceKm.toFixed(1)} km`, duration: durationText };
 }
 
 document.getElementById('add-btn').addEventListener('click', () => {
@@ -1150,14 +1164,22 @@ function updateDaySummary() {
 
   const stops = visibleIndices.map(item => item.s);
 
-  // Calculate accurate haversine total for the current visual sequence
+  // Use real OSRM data from cache when available; fall back to haversine estimates
   let totalKm = 0;
+  let totalSec = 0;
   for (let i = 0; i < stops.length - 1; i++) {
-    totalKm += haversineKm(stops[i], stops[i+1]);
+    const cacheKey = `${stops[i].lat},${stops[i].lng}->${stops[i+1].lat},${stops[i+1].lng}`;
+    if (routeCache[cacheKey]) {
+      totalKm  += routeCache[cacheKey].distanceKm;
+      totalSec += routeCache[cacheKey].durationSec;
+    } else {
+      const hKm = haversineKm(stops[i], stops[i+1]);
+      totalKm  += hKm;
+      totalSec += (hKm / MAX_SPEED_KMH) * 3600;
+    }
   }
-  const hours = totalKm / MAX_SPEED_KMH;
-  document.getElementById('ds-drive').textContent = fmtHours(hours);
-  document.getElementById('ds-dist').textContent = totalKm.toFixed(0) + ' km';
+  document.getElementById('ds-drive').textContent = fmtHours(totalSec / 3600);
+  document.getElementById('ds-dist').textContent  = totalKm.toFixed(0) + ' km';
 }
 
 function haversineKm(a, b) {
@@ -1215,6 +1237,8 @@ function renderStopsList() {
     visibleIndices.sort((a, b) => lookupOrder.indexOf(a.i) - lookupOrder.indexOf(b.i));
   }
 
+  const routePromises = [];
+
   visibleIndices.forEach(({ s, i }, pos) => {
     const isStart = lockStart && pos === 0;
     const isEnd   = lockEnd && pos === visibleIndices.length - 1;
@@ -1234,7 +1258,7 @@ function renderStopsList() {
         <span id="leg-dur-${i}">~${fmtHours(hrs)} drive <span style="font-size:9px;color:var(--muted)">(fetching real route...)</span></span>
       </div>`;
 
-      getRouteDetails(prevStop, s).then(details => {
+      const routePromise = getRouteDetails(prevStop, s).then(details => {
         const distEl = document.getElementById(`leg-dist-${i}`);
         const durEl = document.getElementById(`leg-dur-${i}`);
         if (distEl && durEl && details.distance !== "—") {
@@ -1242,6 +1266,7 @@ function renderStopsList() {
           durEl.innerHTML = `🚗 ${details.duration}`;
         }
       });
+      routePromises.push(routePromise);
     }
 
     const dName = displayName(s);
@@ -1385,7 +1410,9 @@ function renderStopsList() {
     el.appendChild(div);
   });
 
+  // Update summary with haversine estimates first, then re-update once real route data arrives
   updateDaySummary();
+  Promise.allSettled(routePromises).then(() => updateDaySummary());
 }
 
 function updateButtons() {
